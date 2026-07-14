@@ -8,6 +8,7 @@
 
 import Foundation
 import Observation
+import UIKit
 
 /// 数据来源模式。Mock 完全离线可用；Live 面向未来真实后端（当前仓库未实现服务端）。
 enum DataSourceMode: String, CaseIterable, Identifiable, Hashable {

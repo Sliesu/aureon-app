@@ -25,7 +25,7 @@ struct RootView: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 6)
         }
-        .ignoresSafeArea(edge: .bottom)
+        .ignoresSafeArea(edges: .bottom)
         .environment(\.aureonLocale, env.locale)
     }
 }

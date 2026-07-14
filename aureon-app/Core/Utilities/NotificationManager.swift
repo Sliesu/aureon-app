@@ -6,6 +6,7 @@
 //  未来可无缝替换为服务端推送（APNs），接口保持一致。
 //
 
+import Foundation
 import UserNotifications
 
 @MainActor

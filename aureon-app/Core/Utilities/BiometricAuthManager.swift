@@ -6,6 +6,7 @@
 //  在无生物识别硬件（例如部分模拟器）时优雅降级为直接放行，避免阻塞演示。
 //
 
+import Foundation
 import LocalAuthentication
 
 @MainActor

@@ -5,6 +5,7 @@
 //  AI 策略草稿对话：本地演示版 propose/refine，草稿 ID 持久化于 DraftStore。
 //
 
+import Foundation
 import SwiftUI
 
 struct AiTemplateChatView: View {

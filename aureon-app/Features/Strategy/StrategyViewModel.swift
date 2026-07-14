@@ -203,7 +203,7 @@ final class StrategyViewModel {
         paperRun.status = .running
         let request = draft.toBacktestRequest()
         paperTask?.cancel()
-        paperTask = Task { [repository] in
+        paperTask = Task {
             var reference = MockMarketFactory.basePrice(for: request.instId)
             while !Task.isCancelled, self.paperRun.status == .running {
                 let tick = MockMarketFactory.ticker(instId: request.instId, referencePrice: reference)

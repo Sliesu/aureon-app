@@ -131,7 +131,7 @@ final class MarketViewModel {
         let capturedInstId = instId
         streamTask = Task { [repository] in
             var didReceiveAnyTick = false
-            for await event in repository.streamTicker(instId: capturedInstId) {
+            for await event in await repository.streamTicker(instId: capturedInstId) {
                 if Task.isCancelled { break }
                 switch event {
                 case .connected:

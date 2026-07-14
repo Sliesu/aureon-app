@@ -78,7 +78,7 @@ actor LiveAPIClient: DataRepository {
     func fetchFundingRate(instId: String) async throws -> FundingRateInfo { try await request(.funding(instId: instId)) }
     func fetchInstruments() async throws -> [Instrument] { try await request(.instruments) }
 
-    func streamTicker(instId: String) -> AsyncStream<MarketStreamEvent> {
+    func streamTicker(instId: String) async -> AsyncStream<MarketStreamEvent> {
         AsyncStream { continuation in
             guard baseURL != nil else {
                 continuation.yield(.error("尚未配置真实后端 Base URL"))

@@ -30,7 +30,7 @@ protocol DataRepository: Sendable {
     func fetchOrderBook(instId: String) async throws -> OrderBookSnapshot
     func fetchFundingRate(instId: String) async throws -> FundingRateInfo
     func fetchInstruments() async throws -> [Instrument]
-    func streamTicker(instId: String) -> AsyncStream<MarketStreamEvent>
+    func streamTicker(instId: String) async -> AsyncStream<MarketStreamEvent>
     func analyzeCandles(instId: String, bar: CandleInterval) async throws -> String
 
     // 账户

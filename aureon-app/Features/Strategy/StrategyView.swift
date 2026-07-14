@@ -100,7 +100,9 @@ struct StrategyView: View {
                     TemplateListView(
                         viewModel: strategyViewModel,
                         onEdit: { strategyViewModel.editTemplate($0) },
-                        onStart: { Task { await strategyViewModel.startRun(templateId: $0.id) } }
+                        onStart: { template in
+                            Task { await strategyViewModel.startRun(templateId: template.id) }
+                        }
                     )
                     Divider().overlay(Color.white.opacity(0.06))
                     Text("模板编辑器").aureonKicker()

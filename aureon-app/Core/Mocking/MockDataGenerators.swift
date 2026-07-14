@@ -198,15 +198,17 @@ enum MockAccountFactory {
     }
 
     static func orders() -> [OrderRecord] {
-        (0..<12).map { index in
-            OrderRecord(
+        (0..<12).map { index -> OrderRecord in
+            let isBitcoin = index.isMultiple(of: 2)
+            let size = 0.02 + Double(index % 4) * 0.01
+            return OrderRecord(
                 id: "order-\(index)",
-                instId: index.isMultiple(of: 2) ? "BTC-USDT" : "ETH-USDT",
+                instId: isBitcoin ? "BTC-USDT" : "ETH-USDT",
                 instType: .spot,
                 side: index.isMultiple(of: 3) ? .sell : .buy,
-                price: index.isMultiple(of: 2) ? 63_900 + Double(index) * 12 : 3_390 + Double(index) * 4,
-                size: 0.02 + Double(index % 4) * 0.01,
-                filledSize: 0.02 + Double(index % 4) * 0.01,
+                price: isBitcoin ? 63_900 + Double(index) * 12 : 3_390 + Double(index) * 4,
+                size: size,
+                filledSize: size,
                 state: index.isMultiple(of: 5) ? .canceled : .filled,
                 createdAt: Date().addingTimeInterval(-Double(index) * 3_600)
             )
@@ -214,12 +216,13 @@ enum MockAccountFactory {
     }
 
     static func fills() -> [FillRecord] {
-        (0..<10).map { index in
-            FillRecord(
+        (0..<10).map { index -> FillRecord in
+            let isBitcoin = index.isMultiple(of: 2)
+            return FillRecord(
                 id: "fill-\(index)",
-                instId: index.isMultiple(of: 2) ? "BTC-USDT" : "SOL-USDT",
+                instId: isBitcoin ? "BTC-USDT" : "SOL-USDT",
                 side: index.isMultiple(of: 3) ? .sell : .buy,
-                price: index.isMultiple(of: 2) ? 64_120 + Double(index) * 8 : 149.2 + Double(index) * 0.3,
+                price: isBitcoin ? 64_120 + Double(index) * 8 : 149.2 + Double(index) * 0.3,
                 size: 0.01 + Double(index % 3) * 0.02,
                 feeUsd: 0.42 + Double(index) * 0.03,
                 filledAt: Date().addingTimeInterval(-Double(index) * 2_700)

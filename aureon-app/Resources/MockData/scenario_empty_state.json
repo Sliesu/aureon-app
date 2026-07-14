@@ -1,0 +1,8 @@
+{
+  "description": "空状态场景下各列表端点的统一响应形态（GET /api/watchlist、/api/account/*、/api/strategy/templates 等），对应 iOS 客户端 MockScenario.empty。",
+  "watchlist": [],
+  "positions": [],
+  "templates": [],
+  "runs": [],
+  "adviceHistory": []
+}

@@ -1,0 +1,22 @@
+{
+  "description": "SSE /api/market/stream 事件帧示例，供后端团队对齐 data: 负载格式。iOS 客户端的等价回放逻辑见 Core/Mocking/MockTickerStreamSimulator.swift。",
+  "frames": [
+    { "event": "connected", "data": {} },
+    {
+      "event": "tick",
+      "data": {
+        "instId": "BTC-USDT",
+        "last": 64820.15,
+        "bid": 64794.23,
+        "ask": 64846.07,
+        "open24h": 63991.02,
+        "high24h": 65210.88,
+        "low24h": 63504.10,
+        "vol24h": 48211.36,
+        "ts": "2026-07-14T07:00:00.000Z"
+      }
+    },
+    { "event": "error", "data": { "message": "upstream_disconnected" } },
+    { "event": "disconnected", "data": {} }
+  ]
+}

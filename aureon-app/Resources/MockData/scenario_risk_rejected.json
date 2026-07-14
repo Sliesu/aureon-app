@@ -1,0 +1,12 @@
+{
+  "description": "POST /api/execute 在风控拒绝场景下的响应示例（HTTP 400），对应 iOS 客户端 MockScenario.riskRejected。",
+  "status": 400,
+  "body": {
+    "code": "order_notional_exceeded",
+    "message": "订单名义金额超出单笔上限",
+    "details": {
+      "requestedUsd": "800",
+      "maxOrderNotionalUsd": "500"
+    }
+  }
+}

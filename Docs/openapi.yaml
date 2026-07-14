@@ -1,0 +1,1174 @@
+openapi: 3.1.0
+info:
+  title: AUREON Client API
+  version: 0.9.0
+  description: |
+    AUREON 原生 iOS 客户端所依赖的后端契约文档。当前仓库（aureon-app）仅包含
+    iOS 客户端本身，服务端尚未实现；本文件用于固化客户端期望的接口形状，
+    供未来后端团队对齐实现，或供 `LiveAPIClient`（见 App 源码
+    `Core/Networking/LiveAPIClient.swift`）在配置 Base URL 后调用。
+
+    契约来源：参考 okx-ai-quant-platform（Web 版）现有的
+    `src/lib/quant-types.ts`、`src/lib/workspace-settings-contract.ts`
+    与 `src/app/api/**` 路由实现，并按 iOS 客户端实际需要的字段做了精简与
+    重新分组。真实交易执行、服务端调度、LLM 调用、回测计算与密钥管理均保留在
+    后端，iOS 客户端不持有任何 OKX/LLM 密钥。
+servers:
+  - url: https://api.aureon.example.com
+    description: 占位 Base URL，实际部署时由后端团队提供。
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: system
+  - name: market
+  - name: account
+  - name: execution
+  - name: strategy
+  - name: backtest
+  - name: pilot
+  - name: advice
+
+paths:
+  /api/health:
+    get:
+      tags: [system]
+      summary: 健康检查
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string, example: ok } } }
+
+  /api/settings:
+    get:
+      tags: [system]
+      summary: 获取聚合设置负载
+      responses:
+        "200":
+          description: 设置负载
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettingsPayload" }
+    patch:
+      tags: [system]
+      summary: 局部更新范围 / 风控 / 显示偏好
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: "#/components/schemas/WorkspaceScope" }
+                - { $ref: "#/components/schemas/RiskLimits" }
+                - { $ref: "#/components/schemas/DisplayPreferences" }
+      responses:
+        "200":
+          description: 更新后的设置负载
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SettingsPayload" }
+
+  /api/watchlist:
+    get:
+      tags: [market]
+      summary: 获取自选列表
+      responses:
+        "200":
+          description: 自选列表
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/WatchlistItem" } }
+    post:
+      tags: [market]
+      summary: 添加或移除自选
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instId, op]
+              properties:
+                instId: { type: string }
+                op: { type: string, enum: [add, remove] }
+      responses:
+        "200":
+          description: 更新后的自选列表
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/WatchlistItem" } }
+
+  /api/market/ticker:
+    get:
+      tags: [market]
+      summary: 获取单个交易对最新报价
+      parameters:
+        - $ref: "#/components/parameters/InstId"
+      responses:
+        "200":
+          description: Ticker 快照
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TickerSnapshot" }
+
+  /api/market/ohlcv:
+    get:
+      tags: [market]
+      summary: 获取 K 线序列
+      parameters:
+        - $ref: "#/components/parameters/InstId"
+        - name: bar
+          in: query
+          required: true
+          schema: { type: string, enum: [1m, 5m, 15m, 1H, 4H, 1D] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 180, maximum: 500 }
+      responses:
+        "200":
+          description: K 线数组（按时间升序）
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Candle" } }
+
+  /api/market/series:
+    get:
+      tags: [market]
+      summary: 获取轻量价格序列（用于自选迷你走势）
+      parameters: [ { $ref: "#/components/parameters/InstId" } ]
+      responses:
+        "200":
+          description: 价格点序列
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PricePoint" } }
+
+  /api/market/volatility-strip:
+    get:
+      tags: [market]
+      summary: 获取波动率跑马灯数据
+      responses:
+        "200":
+          description: 波动率条目数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/VolatilityStripItem" } }
+
+  /api/market/crypto-macro:
+    get:
+      tags: [market]
+      summary: 获取宏观快照（总市值 / BTC 占比 / 恐慌贪婪指数）
+      responses:
+        "200":
+          description: 宏观快照
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MacroSnapshot" }
+
+  /api/market/crypto-headlines:
+    get:
+      tags: [market]
+      summary: 获取市场新闻头条
+      responses:
+        "200":
+          description: 新闻数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/HeadlineItem" } }
+
+  /api/market/intel-preview:
+    get:
+      tags: [market]
+      summary: 获取市场情报摘要（多空比 / 清算 / 资金费率）
+      parameters: [ { $ref: "#/components/parameters/InstId" } ]
+      responses:
+        "200":
+          description: 市场情报快照
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MarketIntelSnapshot" }
+
+  /api/market/orderbook:
+    get:
+      tags: [market]
+      summary: 获取订单簿快照
+      parameters: [ { $ref: "#/components/parameters/InstId" } ]
+      responses:
+        "200":
+          description: 订单簿
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderBookSnapshot" }
+
+  /api/market/funding:
+    get:
+      tags: [market]
+      summary: 获取资金费率
+      parameters: [ { $ref: "#/components/parameters/InstId" } ]
+      responses:
+        "200":
+          description: 资金费率信息
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FundingRateInfo" }
+
+  /api/market/stream:
+    get:
+      tags: [market]
+      summary: 实时行情 SSE 流
+      description: |
+        Server-Sent Events。`Content-Type: text/event-stream`，每条事件的
+        `data:` 字段为 JSON 编码的 `TickerSnapshot`；连接断开时客户端会自动
+        降级为 4 秒轮询 `/api/market/ticker`。
+      parameters: [ { $ref: "#/components/parameters/InstId" } ]
+      responses:
+        "200":
+          description: SSE 事件流
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /api/okx/instruments:
+    get:
+      tags: [market]
+      summary: 获取可交易标的列表
+      responses:
+        "200":
+          description: 标的数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Instrument" } }
+
+  /api/ai/candles-analyze:
+    post:
+      tags: [market]
+      summary: 请求 AI 生成 K 线摘要
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instId, bar]
+              properties:
+                instId: { type: string }
+                bar: { type: string }
+      responses:
+        "200":
+          description: AI 摘要文本
+          content:
+            application/json:
+              schema: { type: object, properties: { summaryZh: { type: string } } }
+
+  /api/account/balance:
+    get:
+      tags: [account]
+      summary: 获取余额明细与汇总
+      responses:
+        "200":
+          description: 余额响应
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  details: { type: array, items: { $ref: "#/components/schemas/BalanceDetail" } }
+                  summary: { $ref: "#/components/schemas/AccountSummary" }
+
+  /api/account/positions:
+    get:
+      tags: [account]
+      summary: 获取当前持仓
+      responses:
+        "200":
+          description: 持仓数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Position" } }
+
+  /api/account/orders-pending:
+    get:
+      tags: [account]
+      summary: 获取当前挂单
+      responses:
+        "200":
+          description: 挂单数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PendingOrder" } }
+
+  /api/account/orders:
+    get:
+      tags: [account]
+      summary: 获取历史委托
+      responses:
+        "200":
+          description: 历史委托数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/OrderRecord" } }
+
+  /api/account/fills:
+    get:
+      tags: [account]
+      summary: 获取成交记录
+      responses:
+        "200":
+          description: 成交数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/FillRecord" } }
+
+  /api/account/bills:
+    get:
+      tags: [account]
+      summary: 获取资金流水
+      responses:
+        "200":
+          description: 流水数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/BillRecord" } }
+
+  /api/execute:
+    post:
+      tags: [execution]
+      summary: 提交模拟盘/实盘下单请求
+      description: |
+        受风控限额（RiskLimits）与 `automationMode` 约束；`suggest_only`
+        模式下将始终返回 `suggest_only_blocked` 错误。所有金额单位为 USD 名义价值。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instId, instType, side, sizeUsd]
+              properties:
+                instId: { type: string }
+                instType: { type: string, enum: [SPOT, SWAP] }
+                side: { type: string, enum: [buy, sell] }
+                sizeUsd: { type: number }
+                leverage: { type: number, default: 1 }
+      responses:
+        "200":
+          description: 成交订单
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderRecord" }
+        "400":
+          description: 风控拒绝
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/strategy/presets:
+    get:
+      tags: [strategy]
+      summary: 获取 11 类策略风格预设
+      responses:
+        "200":
+          description: 预设数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/StrategyPreset" } }
+
+  /api/strategy/templates:
+    get:
+      tags: [strategy]
+      summary: 获取策略模板列表
+      responses:
+        "200":
+          description: 模板数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/StrategyTemplate" } }
+    post:
+      tags: [strategy]
+      summary: 创建策略模板
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StrategyTemplate" }
+      responses:
+        "201":
+          description: 创建后的模板
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StrategyTemplate" }
+
+  /api/strategy/templates/{id}:
+    patch:
+      tags: [strategy]
+      summary: 更新策略模板
+      parameters: [ { $ref: "#/components/parameters/TemplateId" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StrategyTemplate" }
+      responses:
+        "200":
+          description: 更新后的模板
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StrategyTemplate" }
+    delete:
+      tags: [strategy]
+      summary: 删除策略模板
+      parameters: [ { $ref: "#/components/parameters/TemplateId" } ]
+      responses:
+        "204": { description: 已删除 }
+
+  /api/strategy/runs:
+    get:
+      tags: [strategy]
+      summary: 获取运行实例列表
+      responses:
+        "200":
+          description: 运行实例数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/TemplateRun" } }
+    post:
+      tags: [strategy]
+      summary: 启动新的运行实例
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId]
+              properties: { templateId: { type: string } }
+      responses:
+        "201":
+          description: 新建的运行实例
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateRun" }
+
+  /api/strategy/runs/{id}/{action}:
+    post:
+      tags: [strategy]
+      summary: 运行生命周期动作（running / paused / stopped）
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - name: action
+          in: path
+          required: true
+          schema: { type: string, enum: [running, paused, stopped] }
+      responses:
+        "200":
+          description: 更新后的运行实例
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateRun" }
+
+  /api/strategy/runs/{id}/orders:
+    get:
+      tags: [strategy]
+      summary: 获取运行实例的订单记录
+      parameters: [ { $ref: "#/components/parameters/RunId" } ]
+      responses:
+        "200":
+          description: 订单数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/TemplateOrderRow" } }
+
+  /api/strategy/runs/{id}/ticks:
+    get:
+      tags: [strategy]
+      summary: 获取运行实例的 tick 决策日志
+      parameters: [ { $ref: "#/components/parameters/RunId" } ]
+      responses:
+        "200":
+          description: Tick 日志数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/TemplateRunTick" } }
+
+  /api/strategy/backtest:
+    post:
+      tags: [backtest]
+      summary: 运行标准回测
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BacktestRequest" }
+      responses:
+        "200":
+          description: 回测结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BacktestResult" }
+
+  /api/strategy/backtest/walk-forward:
+    post:
+      tags: [backtest]
+      summary: 运行 Walk-forward 分窗验证
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BacktestRequest" }
+      responses:
+        "200":
+          description: Walk-forward 结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalkForwardResult" }
+
+  /api/strategy/backtest/scan:
+    post:
+      tags: [backtest]
+      summary: 运行参数扫描
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BacktestRequest" }
+      responses:
+        "200":
+          description: 参数扫描结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParamScanResult" }
+
+  /api/ai/pilot/sessions:
+    get:
+      tags: [pilot]
+      summary: 获取 AI Pilot 会话列表
+      responses:
+        "200":
+          description: 会话数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AiPilotSession" } }
+    post:
+      tags: [pilot]
+      summary: 创建 AI Pilot 会话
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiPilotSession" }
+      responses:
+        "201":
+          description: 新建会话
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiPilotSession" }
+
+  /api/ai/pilot/sessions/{id}/{action}:
+    post:
+      tags: [pilot]
+      summary: Pilot 会话生命周期动作（running / paused / stopped）
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: action
+          in: path
+          required: true
+          schema: { type: string, enum: [running, paused, stopped] }
+      responses:
+        "200":
+          description: 更新后的会话
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiPilotSession" }
+
+  /api/ai/pilot/sessions/{id}/log:
+    get:
+      tags: [pilot]
+      summary: 获取 Pilot 决策日志
+      parameters: [ { $ref: "#/components/parameters/SessionId" } ]
+      responses:
+        "200":
+          description: 决策日志数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AiPilotDecision" } }
+
+  /api/ai/pilot/holdings:
+    get:
+      tags: [pilot]
+      summary: 获取 Pilot 当前持仓
+      responses:
+        "200":
+          description: 持仓数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PilotHolding" } }
+
+  /api/ai/pilot/orders/pending:
+    get:
+      tags: [pilot]
+      summary: 获取 Pilot 当前挂单
+      responses:
+        "200":
+          description: 挂单数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PilotOrder" } }
+
+  /api/ai/pilot/orders/cancel:
+    post:
+      tags: [pilot]
+      summary: 撤销 Pilot 挂单
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [id], properties: { id: { type: string } } }
+      responses:
+        "204": { description: 已撤销 }
+
+  /api/advice:
+    get:
+      tags: [advice]
+      summary: 获取建议历史
+      responses:
+        "200":
+          description: 建议数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AdviceRecord" } }
+    post:
+      tags: [advice]
+      summary: 触发一次 AI/规则建议评估
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [instId], properties: { instId: { type: string } } }
+      responses:
+        "200":
+          description: 新生成的建议
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdviceRecord" }
+
+  /api/audit:
+    get:
+      tags: [advice]
+      summary: 获取审计事件时间线
+      responses:
+        "200":
+          description: 审计事件数组
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        预留鉴权方案；当前仓库为单用户 MVP，未强制要求鉴权头。多租户场景下
+        应改为按用户签发的 Bearer Token，服务端负责校验与限流。
+
+  parameters:
+    InstId:
+      name: instId
+      in: query
+      required: true
+      schema: { type: string, example: BTC-USDT }
+    TemplateId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    RunId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: { type: string } }
+
+    WorkspaceScope:
+      type: object
+      properties:
+        tradingMode: { type: string, enum: [spot, derivatives, both] }
+        automationMode: { type: string, enum: [full_auto, suggest_only, hybrid] }
+        tenantMode: { type: string, enum: [single_user, multi_tenant] }
+
+    RiskLimits:
+      type: object
+      properties:
+        maxOrderNotionalUsd: { type: number }
+        maxDailyLossUsd: { type: number }
+        maxPositionNotionalUsd: { type: number }
+        cooldownMs: { type: integer }
+        hybridAutoMaxNotionalUsd: { type: number }
+        maxLeverage: { type: number }
+        maxOpenPositions: { type: integer }
+
+    RiskSnapshot:
+      type: object
+      properties:
+        positionNotionalUsd: { type: number }
+        dailyRealizedPnlUsd: { type: number }
+        lastOrderAt: { type: string, format: date-time, nullable: true }
+
+    DisplayPreferences:
+      type: object
+      properties:
+        quoteCurrency: { type: string, enum: [USDT, USD, CNY] }
+        decimalPlaces: { type: integer }
+        smallAmountThreshold: { type: number }
+
+    StrategyGlobalConfig:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        instId: { type: string }
+        pollMs: { type: integer }
+
+    RuntimeConnectorSnapshot:
+      type: object
+      properties:
+        llmConfigured: { type: boolean }
+        okxConfigured: { type: boolean }
+        okxSimulated: { type: boolean }
+        marketIntelConfigured: { type: boolean }
+
+    SettingsPayload:
+      type: object
+      properties:
+        scope: { $ref: "#/components/schemas/WorkspaceScope" }
+        riskLimits: { $ref: "#/components/schemas/RiskLimits" }
+        riskSnapshot: { $ref: "#/components/schemas/RiskSnapshot" }
+        strategyConfig: { $ref: "#/components/schemas/StrategyGlobalConfig" }
+        displayPrefs: { $ref: "#/components/schemas/DisplayPreferences" }
+        pilotMinDecisionGapMs: { type: integer }
+        runtimeConnectors: { $ref: "#/components/schemas/RuntimeConnectorSnapshot" }
+        appVersion: { type: string }
+
+    WatchlistItem:
+      type: object
+      properties:
+        instId: { type: string }
+        addedAt: { type: string, format: date-time }
+
+    TickerSnapshot:
+      type: object
+      properties:
+        instId: { type: string }
+        last: { type: number }
+        bid: { type: number }
+        ask: { type: number }
+        open24h: { type: number }
+        high24h: { type: number }
+        low24h: { type: number }
+        vol24h: { type: number }
+        ts: { type: string, format: date-time }
+
+    Candle:
+      type: object
+      properties:
+        ts: { type: string, format: date-time }
+        o: { type: number }
+        h: { type: number }
+        l: { type: number }
+        c: { type: number }
+        vol: { type: number }
+
+    PricePoint:
+      type: object
+      properties:
+        t: { type: string, format: date-time }
+        last: { type: number }
+
+    VolatilityStripItem:
+      type: object
+      properties:
+        instId: { type: string }
+        changePercent24h: { type: number }
+
+    MacroPoint:
+      type: object
+      properties:
+        t: { type: string, format: date-time }
+        value: { type: number }
+
+    MacroSnapshot:
+      type: object
+      properties:
+        totalMarketCapUsd: { type: number }
+        btcDominancePercent: { type: number }
+        fearGreedIndex: { type: integer }
+        history: { type: array, items: { $ref: "#/components/schemas/MacroPoint" } }
+
+    HeadlineItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        source: { type: string }
+        publishedAt: { type: string, format: date-time }
+        url: { type: string }
+
+    MarketIntelSnapshot:
+      type: object
+      properties:
+        instId: { type: string }
+        summaryZh: { type: string }
+        longShortRatio: { type: number }
+        liquidations24hUsd: { type: number }
+        fundingRatePercent: { type: number }
+
+    OrderBookLevel:
+      type: object
+      properties:
+        price: { type: number }
+        size: { type: number }
+
+    OrderBookSnapshot:
+      type: object
+      properties:
+        instId: { type: string }
+        bids: { type: array, items: { $ref: "#/components/schemas/OrderBookLevel" } }
+        asks: { type: array, items: { $ref: "#/components/schemas/OrderBookLevel" } }
+        ts: { type: string, format: date-time }
+
+    FundingRateInfo:
+      type: object
+      properties:
+        instId: { type: string }
+        fundingRatePercent: { type: number }
+        nextFundingAt: { type: string, format: date-time }
+
+    Instrument:
+      type: object
+      properties:
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        baseCcy: { type: string }
+        quoteCcy: { type: string }
+        lastPrice: { type: number }
+        changePercent24h: { type: number }
+
+    BalanceDetail:
+      type: object
+      properties:
+        ccy: { type: string }
+        availableBalance: { type: number }
+        frozenBalance: { type: number }
+        equityUsd: { type: number }
+
+    AccountSummary:
+      type: object
+      properties:
+        totalEquityUsd: { type: number }
+        totalAvailableUsd: { type: number }
+        totalFrozenUsd: { type: number }
+        unrealizedPnlUsd: { type: number }
+
+    Position:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        side: { type: string, enum: [long, short] }
+        quantity: { type: number }
+        entryPrice: { type: number }
+        markPrice: { type: number }
+        leverage: { type: number }
+        unrealizedPnlUsd: { type: number }
+        marginUsd: { type: number }
+
+    PendingOrder:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        side: { type: string, enum: [buy, sell] }
+        price: { type: number }
+        size: { type: number }
+        filledSize: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    OrderRecord:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        side: { type: string, enum: [buy, sell] }
+        price: { type: number }
+        size: { type: number }
+        filledSize: { type: number }
+        state: { type: string, enum: [live, filled, canceled, partially_filled] }
+        createdAt: { type: string, format: date-time }
+
+    FillRecord:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        price: { type: number }
+        size: { type: number }
+        feeUsd: { type: number }
+        filledAt: { type: string, format: date-time }
+
+    BillRecord:
+      type: object
+      properties:
+        id: { type: string }
+        ccy: { type: string }
+        type: { type: string, enum: [trade, funding, transfer, fee] }
+        amount: { type: number }
+        balanceAfter: { type: number }
+        occurredAt: { type: string, format: date-time }
+
+    StrategyPreset:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        style: { $ref: "#/components/schemas/StrategyStyle" }
+        descriptionZh: { type: string }
+
+    StrategyStyle:
+      type: string
+      enum: [conservative, balanced, aggressive, swing, dca_grid, scalper, turtle, dual_ma, grid_breakout, bb_revert, range_rotate]
+
+    StrategyFrequency:
+      type: object
+      properties:
+        kind: { type: string, enum: [interval, cron] }
+        intervalSeconds: { type: integer }
+        cronExpression: { type: string, nullable: true }
+
+    EntrySizing:
+      type: object
+      properties:
+        usdAmount: { type: number }
+        percentOfEquity: { type: number, nullable: true }
+
+    RiskConfig:
+      type: object
+      properties:
+        takeProfitPercent: { type: number }
+        stopLossPercent: { type: number }
+        maxLeverage: { type: number }
+
+    BacktestSummary:
+      type: object
+      properties:
+        totalReturnPercent: { type: number }
+        winRatePercent: { type: number }
+        maxDrawdownPercent: { type: number }
+        sharpeRatio: { type: number }
+        tradeCount: { type: integer }
+        completedAt: { type: string, format: date-time }
+
+    StrategyTemplate:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        style: { $ref: "#/components/schemas/StrategyStyle" }
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        frequency: { $ref: "#/components/schemas/StrategyFrequency" }
+        entrySizing: { $ref: "#/components/schemas/EntrySizing" }
+        leverage: { type: number }
+        risk: { $ref: "#/components/schemas/RiskConfig" }
+        ruleParams: { type: object, additionalProperties: { type: number } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastBacktestSummary: { $ref: "#/components/schemas/BacktestSummary" }
+
+    TemplateRun:
+      type: object
+      properties:
+        id: { type: string }
+        templateId: { type: string }
+        templateName: { type: string }
+        style: { $ref: "#/components/schemas/StrategyStyle" }
+        instId: { type: string }
+        status: { type: string, enum: [running, paused, stopped, completed, error] }
+        startedAt: { type: string, format: date-time }
+        nextFireAt: { type: string, format: date-time, nullable: true }
+        execFailStreak: { type: integer }
+        lastTickAt: { type: string, format: date-time, nullable: true }
+        realizedPnlUsd: { type: number }
+
+    TemplateOrderRow:
+      type: object
+      properties:
+        id: { type: string }
+        runId: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        price: { type: number }
+        size: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    TemplateRunTick:
+      type: object
+      properties:
+        id: { type: string }
+        runId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        messageZh: { type: string }
+        signal: { type: string, enum: [buy, sell, hold], nullable: true }
+
+    BacktestRequest:
+      type: object
+      properties:
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        bar: { type: string }
+        limit: { type: integer }
+        style: { $ref: "#/components/schemas/StrategyStyle" }
+        sizingUsd: { type: number }
+        leverage: { type: number }
+        risk: { $ref: "#/components/schemas/RiskConfig" }
+
+    EquityPoint:
+      type: object
+      properties:
+        t: { type: string, format: date-time }
+        equity: { type: number }
+
+    TradeRecord:
+      type: object
+      properties:
+        id: { type: string }
+        entryAt: { type: string, format: date-time }
+        exitAt: { type: string, format: date-time }
+        side: { type: string, enum: [buy, sell] }
+        entryPrice: { type: number }
+        exitPrice: { type: number }
+        pnlPercent: { type: number }
+        isWin: { type: boolean }
+
+    BacktestResult:
+      type: object
+      properties:
+        request: { $ref: "#/components/schemas/BacktestRequest" }
+        summary: { $ref: "#/components/schemas/BacktestSummary" }
+        equityCurve: { type: array, items: { $ref: "#/components/schemas/EquityPoint" } }
+        trades: { type: array, items: { $ref: "#/components/schemas/TradeRecord" } }
+        candles: { type: array, items: { $ref: "#/components/schemas/Candle" } }
+
+    WalkForwardWindowResult:
+      type: object
+      properties:
+        id: { type: string }
+        windowLabel: { type: string }
+        inSampleReturnPercent: { type: number }
+        outSampleReturnPercent: { type: number }
+
+    WalkForwardResult:
+      type: object
+      properties:
+        windows: { type: array, items: { $ref: "#/components/schemas/WalkForwardWindowResult" } }
+        averageOutSampleReturnPercent: { type: number }
+
+    ParamScanPoint:
+      type: object
+      properties:
+        id: { type: string }
+        paramLabel: { type: string }
+        totalReturnPercent: { type: number }
+        maxDrawdownPercent: { type: number }
+
+    ParamScanResult:
+      type: object
+      properties:
+        points: { type: array, items: { $ref: "#/components/schemas/ParamScanPoint" } }
+        bestPointId: { type: string, nullable: true }
+
+    AiPilotSession:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        instId: { type: string }
+        instType: { type: string, enum: [SPOT, SWAP] }
+        status: { type: string, enum: [draft, running, paused, stopped] }
+        autoExecute: { type: boolean }
+        decisionGapSeconds: { type: integer }
+        createdAt: { type: string, format: date-time }
+        lastDecisionAt: { type: string, format: date-time, nullable: true }
+
+    AiPilotDecision:
+      type: object
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        action: { type: string, enum: [buy, sell, hold, close_position] }
+        confidencePercent: { type: number }
+        reasoningZh: { type: string }
+        executed: { type: boolean }
+        occurredAt: { type: string, format: date-time }
+
+    PilotHolding:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        quantity: { type: number }
+        averagePrice: { type: number }
+        markPrice: { type: number }
+        unrealizedPnlUsd: { type: number }
+
+    PilotOrder:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        price: { type: number }
+        size: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    AdviceRiskFlag:
+      type: object
+      properties:
+        id: { type: string }
+        labelZh: { type: string }
+
+    AdviceRecord:
+      type: object
+      properties:
+        id: { type: string }
+        instId: { type: string }
+        action: { type: string, enum: [buy, sell, hold] }
+        confidencePercent: { type: number }
+        riskFlags: { type: array, items: { $ref: "#/components/schemas/AdviceRiskFlag" } }
+        llmSummaryZh: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [order, risk, strategy, settings] }
+        messageZh: { type: string }
+        occurredAt: { type: string, format: date-time }

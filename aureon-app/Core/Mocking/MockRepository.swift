@@ -167,7 +167,7 @@ actor MockRepository: DataRepository {
         }
     }
 
-    func streamTicker(instId: String) -> AsyncStream<MarketStreamEvent> {
+    nonisolated func streamTicker(instId: String) -> AsyncStream<MarketStreamEvent> {
         MockTickerStreamSimulator.stream(instId: instId, scenarioProvider: scenarioProvider)
     }
 

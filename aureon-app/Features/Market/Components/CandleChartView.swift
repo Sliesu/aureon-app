@@ -108,7 +108,8 @@ struct CandleChartView: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                let origin = geo[proxy.plotAreaFrame].origin
+                                guard let plotFrame = proxy.plotFrame else { return }
+                                let origin = geo[plotFrame].origin
                                 let relativeX = value.location.x - origin.x
                                 guard let date: Date = proxy.value(atX: relativeX) else { return }
                                 if let closest = candles.min(by: { abs($0.ts.timeIntervalSince(date)) < abs($1.ts.timeIntervalSince(date)) }) {

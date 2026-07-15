@@ -56,14 +56,19 @@ final class AppEnvironment {
     let draftStore = DraftStore()
     let liveActivity = LiveActivityManager()
 
+    /// 统一原生入口路由：快捷操作、Widget/灵动岛深链、通知点击均汇聚于此。
+    let router = AppRouter.shared
+
     /// 真实后端 Base URL（用户在「我的 → API 环境」中填写，留空则数据源强制回落为 Mock）。
     var liveBaseURLString: String = ""
 
     init(repository: DataRepository? = nil) {
         self.repository = repository ?? MockRepository(scenarioProvider: { MockScenarioStore.current })
         self.locale = draftStore.locale
+        notifications.deepLinkHandler = { [router] link in router.pendingDeepLink = link }
         Task { await bootstrap() }
-        Task { await notifications.requestAuthorizationIfNeeded() }
+        // 不在启动时强制弹出通知授权：改为在「我的 → 通知」中由用户主动触发，
+        // 遵循 Apple 关于「上下文相关时机再请求权限」的建议。
     }
 
     private func bootstrap() async {

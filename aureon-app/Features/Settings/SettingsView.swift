@@ -74,6 +74,8 @@ struct SettingsView: View {
                     }
                 ).padding(.horizontal, 16)
 
+                NotificationStatusCard(notifications: env.notifications).padding(.horizontal, 16)
+
                 ConnectionStatusCard(connectors: payload.runtimeConnectors).padding(.horizontal, 16)
 
                 DataSourceEditor().padding(.horizontal, 16)

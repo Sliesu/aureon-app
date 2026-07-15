@@ -10,6 +10,7 @@ import UIKit
 
 @main
 struct AureonApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var environment = AppEnvironment()
 
     init() {
@@ -18,10 +19,13 @@ struct AureonApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AureonLaunchContainer()
                 .environment(environment)
                 .preferredColorScheme(.dark)
                 .tint(AureonPalette.gold500)
+                .onOpenURL { url in
+                    environment.router.handle(url: url)
+                }
         }
     }
 }

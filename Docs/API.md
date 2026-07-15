@@ -64,6 +64,26 @@
 | 断线降级 | 行情流直接标记为 `disconnected`，用于验证「实时 → 轮询 → 离线」的连接状态徽章 |
 | 风控拒绝 | 下单请求始终返回 `order_notional_exceeded`，用于验证风控拒绝态横幅 |
 
+## 未来推送服务端接入点（当前未实现）
+
+客户端已预留 APNs 设备 token 注册接口（`Core/Utilities/PushTokenRegistrar.swift`
+中的 `PushTokenRegistering` 协议，默认 `NoOpPushTokenRegistrar`），未来接入真实
+推送后端时，建议的契约占位如下（尚未在 `openapi.yaml` 中定义，仅作为落地参考）：
+
+```
+POST /api/devices/push-token
+{
+  "deviceTokenHex": "string",
+  "platform": "ios",
+  "bundleId": "com.rbc.aureon-app",
+  "environment": "development" | "production"
+}
+```
+
+服务端落地后，只需实现该协议并在 `AppEnvironment`/`PushTokenRegistrarHolder`
+中替换默认实现，客户端调用链路（授权 → `registerForRemoteNotifications()` →
+`AppDelegate` 回调 → 协议转发）无需改动。
+
 ## 日期与错误格式
 
 - 所有时间字段使用 ISO-8601（含小数秒），解码逻辑见 `Core/Networking/JSONCoding.swift`。

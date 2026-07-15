@@ -6,6 +6,70 @@
 //
 
 import SwiftUI
+import UserNotifications
+
+struct NotificationStatusCard: View {
+    @Bindable var notifications: NotificationManager
+    @State private var testSentAt: Date?
+
+    private var statusLabelZh: String {
+        switch notifications.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return "已授权"
+        case .denied: return "已拒绝"
+        case .notDetermined: return "未请求"
+        @unknown default: return "未知"
+        }
+    }
+
+    private var statusTint: SemanticTint {
+        switch notifications.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return .buy
+        case .denied: return .sell
+        default: return .hold
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("通知").aureonKicker()
+                Spacer()
+                StatusBadge(text: statusLabelZh, tint: statusTint)
+            }
+
+            Text("策略状态变化、回测完成与风控提醒会通过本地通知推送；点击通知可直达对应页面。")
+                .font(AureonFont.body(11))
+                .foregroundStyle(AureonPalette.mutedSlate)
+
+            HStack(spacing: 10) {
+                switch notifications.authorizationStatus {
+                case .notDetermined:
+                    Button("开启通知") {
+                        Task { await notifications.requestAuthorization() }
+                    }
+                    .buttonStyle(GoldCapsuleButtonStyle())
+                case .denied:
+                    Button("前往系统设置") { notifications.openSystemSettings() }
+                        .buttonStyle(GhostButtonStyle())
+                default:
+                    Button("发送测试通知") {
+                        notifications.sendTestNotification()
+                        testSentAt = .now
+                    }
+                    .buttonStyle(GhostButtonStyle())
+                }
+            }
+
+            if let testSentAt {
+                Text("已于 \(testSentAt.formatted(date: .omitted, time: .standard)) 发送测试通知")
+                    .font(AureonFont.body(10))
+                    .foregroundStyle(AureonPalette.mutedSlate)
+            }
+        }
+        .glassCard()
+        .task { await notifications.refreshAuthorizationStatus() }
+    }
+}
 
 struct ProductScopeEditor: View {
     @Binding var scope: WorkspaceScope

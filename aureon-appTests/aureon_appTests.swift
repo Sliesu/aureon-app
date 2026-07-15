@@ -6,6 +6,8 @@
 //  纸面运行草稿转换与风控拒绝路径。
 //
 
+import AureonShared
+import UIKit
 import XCTest
 @testable import aureon_app
 
@@ -130,5 +132,51 @@ final class aureon_appTests: XCTestCase {
         var state = PaperRunState()
         state.equity = 11_000
         XCTAssertEqual(state.totalReturnPercent, 10, accuracy: 0.001)
+    }
+
+    // MARK: - 原生入口路由（快捷操作 / Widget / 通知 -> AppRouter）
+
+    @MainActor
+    func testAppRouterHandlesDeepLinkURL() {
+        let router = AppRouter.shared
+        router.pendingDeepLink = nil
+        router.handle(url: AureonDeepLink.market(instId: "ETH-USDT").url)
+        XCTAssertEqual(router.pendingDeepLink, .market(instId: "ETH-USDT"))
+        XCTAssertEqual(router.consumePendingDeepLink(), .market(instId: "ETH-USDT"))
+        XCTAssertNil(router.pendingDeepLink)
+    }
+
+    @MainActor
+    func testAppRouterHandlesNotificationUserInfo() {
+        let router = AppRouter.shared
+        router.pendingDeepLink = nil
+        router.handle(notificationUserInfo: ["aureon.deepLink": AureonDeepLink.strategyRuns.userInfoValue])
+        XCTAssertEqual(router.pendingDeepLink, .strategyRuns)
+    }
+
+    @MainActor
+    func testAppRouterHandlesShortcutItem() {
+        let router = AppRouter.shared
+        router.pendingDeepLink = nil
+        let item = UIApplicationShortcutItem(type: AureonQuickActionType.newStrategyTemplate.rawValue, localizedTitle: "新建策略")
+        router.handle(shortcutItem: item)
+        XCTAssertEqual(router.pendingDeepLink, .strategyNewTemplate)
+    }
+
+    @MainActor
+    func testAppRouterIgnoresUnknownShortcutType() {
+        let router = AppRouter.shared
+        router.pendingDeepLink = nil
+        let item = UIApplicationShortcutItem(type: "com.unknown.type", localizedTitle: "未知")
+        router.handle(shortcutItem: item)
+        XCTAssertNil(router.pendingDeepLink)
+    }
+
+    @MainActor
+    func testAppRouterIgnoresUnrelatedNotificationPayload() {
+        let router = AppRouter.shared
+        router.pendingDeepLink = nil
+        router.handle(notificationUserInfo: ["someOtherKey": "value"])
+        XCTAssertNil(router.pendingDeepLink)
     }
 }

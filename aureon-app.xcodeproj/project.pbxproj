@@ -6,7 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		195DFCB70514853C7309E692 /* AureonShared in Frameworks */ = {isa = PBXBuildFile; productRef = 195DFCB70514853C7309E691 /* AureonShared */; };
+		88CA368FE1BE51901CDCCF41 /* AureonShared in Frameworks */ = {isa = PBXBuildFile; productRef = 928BD6B5AD15BD57FD9BE2B0 /* AureonShared */; };
+		B00F2A3058B5F0BA62494BB6 /* AureonShared in Frameworks */ = {isa = PBXBuildFile; productRef = B00F2A3058B5F0BA62494BB5 /* AureonShared */; };
+		B7D8D88CCB4ED1168EB6EE7E /* AureonWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 16DD7BB96EA8CFB063DD01B8 /* AureonWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		49648AAB0F444C9C29231ABA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D98EB087300686010028F3E0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 239AFCABF2C4D3DD3FAC2646;
+			remoteInfo = AureonWidgets;
+		};
 		D98EB09F300686020028F3E0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D98EB087300686010028F3E0 /* Project object */;
@@ -23,15 +37,58 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		1C0F636D86009DA42F5BD433 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B7D8D88CCB4ED1168EB6EE7E /* AureonWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		16DD7BB96EA8CFB063DD01B8 /* AureonWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AureonWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D98EB08F300686010028F3E0 /* aureon-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "aureon-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D98EB09E300686020028F3E0 /* aureon-appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "aureon-appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D98EB0A8300686020028F3E0 /* aureon-appUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "aureon-appUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8F5C3B4A2D1E60718293A4B5 /* Exceptions for "aureon-app" folder in "aureon-app" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D98EB08E300686010028F3E0 /* aureon-app */;
+		};
+		9A6D4C3B2E1F708192A3B4C5 /* Exceptions for "AureonWidgets" folder in "AureonWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 239AFCABF2C4D3DD3FAC2646 /* AureonWidgets */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		73334810AABCEF45814ABCAF /* AureonWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9A6D4C3B2E1F708192A3B4C5 /* Exceptions for "AureonWidgets" folder in "AureonWidgets" target */,
+			);
+			path = AureonWidgets;
+			sourceTree = "<group>";
+		};
 		D98EB091300686010028F3E0 /* aureon-app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8F5C3B4A2D1E60718293A4B5 /* Exceptions for "aureon-app" folder in "aureon-app" target */,
+			);
 			path = "aureon-app";
 			sourceTree = "<group>";
 		};
@@ -48,10 +105,19 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		6FBEB2A9BEA12F3452B43F93 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00F2A3058B5F0BA62494BB6 /* AureonShared in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D98EB08C300686010028F3E0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				195DFCB70514853C7309E692 /* AureonShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +125,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				88CA368FE1BE51901CDCCF41 /* AureonShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				D98EB091300686010028F3E0 /* aureon-app */,
+				73334810AABCEF45814ABCAF /* AureonWidgets */,
 				D98EB0A1300686020028F3E0 /* aureon-appTests */,
 				D98EB0AB300686020028F3E0 /* aureon-appUITests */,
 				D98EB090300686010028F3E0 /* Products */,
@@ -88,6 +156,7 @@
 				D98EB08F300686010028F3E0 /* aureon-app.app */,
 				D98EB09E300686020028F3E0 /* aureon-appTests.xctest */,
 				D98EB0A8300686020028F3E0 /* aureon-appUITests.xctest */,
+				16DD7BB96EA8CFB063DD01B8 /* AureonWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,6 +164,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		239AFCABF2C4D3DD3FAC2646 /* AureonWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19476A96C51FB397399F7158 /* Build configuration list for PBXNativeTarget "AureonWidgets" */;
+			buildPhases = (
+				1CFF367C82A4922F4996E43F /* Sources */,
+				6FBEB2A9BEA12F3452B43F93 /* Frameworks */,
+				BF2A89A7B3C418881382DF6F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				73334810AABCEF45814ABCAF /* AureonWidgets */,
+			);
+			name = AureonWidgets;
+			packageProductDependencies = (
+				B00F2A3058B5F0BA62494BB5 /* AureonShared */,
+			);
+			productName = AureonWidgets;
+			productReference = 16DD7BB96EA8CFB063DD01B8 /* AureonWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		D98EB08E300686010028F3E0 /* aureon-app */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D98EB0B2300686020028F3E0 /* Build configuration list for PBXNativeTarget "aureon-app" */;
@@ -102,16 +194,19 @@
 				D98EB08B300686010028F3E0 /* Sources */,
 				D98EB08C300686010028F3E0 /* Frameworks */,
 				D98EB08D300686010028F3E0 /* Resources */,
+				1C0F636D86009DA42F5BD433 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				85D18C92CD1907A5CC0922C6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D98EB091300686010028F3E0 /* aureon-app */,
 			);
 			name = "aureon-app";
 			packageProductDependencies = (
+				195DFCB70514853C7309E691 /* AureonShared */,
 			);
 			productName = "aureon-app";
 			productReference = D98EB08F300686010028F3E0 /* aureon-app.app */;
@@ -135,6 +230,7 @@
 			);
 			name = "aureon-appTests";
 			packageProductDependencies = (
+				928BD6B5AD15BD57FD9BE2B0 /* AureonShared */,
 			);
 			productName = "aureon-appTests";
 			productReference = D98EB09E300686020028F3E0 /* aureon-appTests.xctest */;
@@ -173,6 +269,9 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					239AFCABF2C4D3DD3FAC2646 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					D98EB08E300686010028F3E0 = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -195,6 +294,9 @@
 			);
 			mainGroup = D98EB086300686010028F3E0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8E27ED5774666096D893BB0B /* XCLocalSwiftPackageReference "AureonShared" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D98EB090300686010028F3E0 /* Products */;
 			projectDirPath = "";
@@ -203,11 +305,19 @@
 				D98EB08E300686010028F3E0 /* aureon-app */,
 				D98EB09D300686020028F3E0 /* aureon-appTests */,
 				D98EB0A7300686020028F3E0 /* aureon-appUITests */,
+				239AFCABF2C4D3DD3FAC2646 /* AureonWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BF2A89A7B3C418881382DF6F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D98EB08D300686010028F3E0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -232,6 +342,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1CFF367C82A4922F4996E43F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D98EB08B300686010028F3E0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -256,6 +373,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		85D18C92CD1907A5CC0922C6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 239AFCABF2C4D3DD3FAC2646 /* AureonWidgets */;
+			targetProxy = 49648AAB0F444C9C29231ABA /* PBXContainerItemProxy */;
+		};
 		D98EB0A0300686020028F3E0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D98EB08E300686010028F3E0 /* aureon-app */;
@@ -269,6 +391,62 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		C1D2E3F40516273849A5B6C7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AureonWidgets/AureonWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S46SVXSHS3;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AureonWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rbc.aureon-app.AureonWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D1E2F30415263748A9B5C6D7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AureonWidgets/AureonWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = S46SVXSHS3;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AureonWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.rbc.aureon-app.AureonWidgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		D98EB0B0300686020028F3E0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -395,16 +573,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "aureon-app/aureon-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = S46SVXSHS3;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "aureon-app/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Aureon;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AUREON 使用 Face ID 确认模拟下单与自动执行等敏感操作。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchBackground;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -429,16 +611,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "aureon-app/aureon-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = S46SVXSHS3;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "aureon-app/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Aureon;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AUREON 使用 Face ID 确认模拟下单与自动执行等敏感操作。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_UIColorName = LaunchBackground;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -545,6 +731,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		19476A96C51FB397399F7158 /* Build configuration list for PBXNativeTarget "AureonWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1D2E3F40516273849A5B6C7 /* Debug */,
+				D1E2F30415263748A9B5C6D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D98EB08A300686010028F3E0 /* Build configuration list for PBXProject "aureon-app" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -582,6 +777,28 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8E27ED5774666096D893BB0B /* XCLocalSwiftPackageReference "AureonShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = AureonShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		195DFCB70514853C7309E691 /* AureonShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AureonShared;
+		};
+		928BD6B5AD15BD57FD9BE2B0 /* AureonShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AureonShared;
+		};
+		B00F2A3058B5F0BA62494BB5 /* AureonShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AureonShared;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D98EB087300686010028F3E0 /* Project object */;
 }

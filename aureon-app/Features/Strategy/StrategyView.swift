@@ -20,6 +20,7 @@ private enum TemplateSubTab: String, CaseIterable, Hashable {
 }
 
 struct StrategyView: View {
+    @Binding var route: StrategyRoute
     @Environment(AppEnvironment.self) private var env
     @State private var strategyViewModel: StrategyViewModel?
     @State private var pilotViewModel: PilotViewModel?
@@ -77,6 +78,26 @@ struct StrategyView: View {
             }
         }
         .accessibilityIdentifier("strategy.root")
+        .onChange(of: route.requestedSection) { _, newValue in
+            apply(newValue)
+        }
+        .onAppear {
+            apply(route.requestedSection)
+        }
+    }
+
+    /// 处理来自快捷操作 / Widget / 通知点击的深链请求（运行列表 / 新建模板）。
+    private func apply(_ requestedSection: StrategyRoute.Section?) {
+        guard let requestedSection else { return }
+        section = .templates
+        switch requestedSection {
+        case .runs:
+            templateSubTab = .runs
+        case .newTemplate:
+            templateSubTab = .editor
+            strategyViewModel?.beginNewDraft(style: .balanced)
+        }
+        route.requestedSection = nil
     }
 
     @ViewBuilder

@@ -5,12 +5,14 @@
 //  根视图：托管五域 Tab 内容与底部液态玻璃 Dock。
 //
 
+import AureonShared
 import SwiftUI
 
 struct RootView: View {
     @Environment(AppEnvironment.self) private var env
     @State private var selectedTab: AureonTab = .market
     @State private var marketRoute = MarketRoute()
+    @State private var strategyRoute = StrategyRoute()
 
     var body: some View {
         ZStack {
@@ -26,7 +28,7 @@ struct RootView: View {
                 }
 
                 Tab(AureonTab.strategy.titleZh, systemImage: AureonTab.strategy.systemImage, value: AureonTab.strategy) {
-                    StrategyView()
+                    StrategyView(route: $strategyRoute)
                 }
 
                 Tab(AureonTab.insights.titleZh, systemImage: AureonTab.insights.systemImage, value: AureonTab.insights) {
@@ -40,6 +42,31 @@ struct RootView: View {
             .tint(AureonPalette.dockSelected)
         }
         .environment(\.aureonLocale, env.locale)
+        .task {
+            apply(env.router.consumePendingDeepLink())
+        }
+        .onChange(of: env.router.pendingDeepLink) { _, newValue in
+            apply(newValue)
+        }
+    }
+
+    /// 把快捷操作 / Widget 深链 / 通知点击统一路由到对应 Tab 与子路由。
+    private func apply(_ link: AureonDeepLink?) {
+        guard let link else { return }
+        switch link {
+        case .market(let instId):
+            marketRoute.instId = instId
+            selectedTab = .market
+        case .strategyRuns:
+            strategyRoute.requestedSection = .runs
+            selectedTab = .strategy
+        case .strategyNewTemplate:
+            strategyRoute.requestedSection = .newTemplate
+            selectedTab = .strategy
+        case .notificationSettings:
+            selectedTab = .profile
+        }
+        env.router.pendingDeepLink = nil
     }
 }
 
@@ -77,6 +104,16 @@ enum AureonTab: String, CaseIterable, Identifiable, Hashable {
 /// 跨 Tab 共享的市场路由状态（当前 instId），用于策略/洞察继承主币种。
 struct MarketRoute: Equatable {
     var instId: String = "BTC-USDT"
+}
+
+/// 策略 Tab 的深链请求：来自快捷操作 / Widget / 通知点击，被消费后应清空。
+struct StrategyRoute: Equatable {
+    enum Section: Equatable {
+        case runs
+        case newTemplate
+    }
+
+    var requestedSection: Section?
 }
 
 private struct AureonLocaleKey: EnvironmentKey {

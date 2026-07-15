@@ -34,10 +34,13 @@ struct MarketView: View {
         }
         .task {
             if viewModel == nil {
-                let vm = MarketViewModel(instId: route.instId, repository: env.repository, haptics: env.haptics)
+                let vm = MarketViewModel(instId: route.instId, repository: env.repository, haptics: env.haptics, notifications: env.notifications)
                 viewModel = vm
                 await vm.loadAll()
             }
+        }
+        .onChange(of: route.instId) { _, newInstId in
+            Task { await viewModel?.changeInstrument(to: newInstId) }
         }
         .onDisappear { viewModel?.stopStream() }
         .sheet(isPresented: $showOrderSheet) {

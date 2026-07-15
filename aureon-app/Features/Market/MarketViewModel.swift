@@ -6,15 +6,18 @@
 //  对齐 Web 版 DashboardClient.tsx / OhlcvDesk.tsx 的核心工作流。
 //
 
+import AureonShared
 import Foundation
 import Observation
 import UIKit
+import WidgetKit
 
 @MainActor
 @Observable
 final class MarketViewModel {
     private let repository: DataRepository
     private let haptics: HapticsManager
+    private let notifications: NotificationManager?
 
     var instId: String
     var interval: CandleInterval = .fifteenMinutes
@@ -34,10 +37,11 @@ final class MarketViewModel {
     private var streamTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
 
-    init(instId: String, repository: DataRepository, haptics: HapticsManager) {
+    init(instId: String, repository: DataRepository, haptics: HapticsManager, notifications: NotificationManager? = nil) {
         self.instId = instId
         self.repository = repository
         self.haptics = haptics
+        self.notifications = notifications
     }
 
     var visibleCandles: [Candle] {
@@ -94,6 +98,7 @@ final class MarketViewModel {
             return WatchlistWidgetSnapshot(instId: item.instId, last: ticker.last, changePercent24h: ticker.changePercent24h)
         }
         WidgetSnapshotStore.updateWatchlist(snapshots)
+        WidgetCenter.shared.reloadTimelines(ofKind: AureonWidgetKind.watchlist)
     }
 
     func toggleWatchlist() async {
@@ -204,6 +209,9 @@ final class MarketViewModel {
         } catch let envelope as APIErrorEnvelope {
             orderErrorMessage = envelope.message
             haptics.error()
+            if let reason = RiskRejectionReason(rawValue: envelope.code) {
+                notifications?.notifyRiskAlert(reason: reason)
+            }
         } catch {
             orderErrorMessage = error.localizedDescription
             haptics.error()

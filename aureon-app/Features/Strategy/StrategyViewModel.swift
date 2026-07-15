@@ -6,9 +6,11 @@
 //  对齐 Web 版 StrategyConsole.tsx / BacktestPanel.tsx / RunList.tsx。
 //
 
+import AureonShared
 import Foundation
 import Observation
 import UIKit
+import WidgetKit
 
 @MainActor
 @Observable
@@ -83,15 +85,18 @@ final class StrategyViewModel {
 
     private func syncWidgetSnapshot(_ runs: [TemplateRun]) {
         let runningRuns = runs.filter { $0.status == .running }
-        guard let top = runningRuns.max(by: { $0.realizedPnlUsd < $1.realizedPnlUsd }) else {
-            return
+        if let top = runningRuns.max(by: { $0.realizedPnlUsd < $1.realizedPnlUsd }) {
+            WidgetSnapshotStore.updateStrategySummary(StrategyWidgetSnapshot(
+                runningCount: runningRuns.count,
+                topTemplateName: top.templateName,
+                topRealizedPnlUsd: top.realizedPnlUsd,
+                updatedAt: .now
+            ))
+        } else {
+            // 无运行中策略时清空快照，避免小组件残留已停止策略的旧数据。
+            WidgetSnapshotStore.updateStrategySummary(nil)
         }
-        WidgetSnapshotStore.updateStrategySummary(StrategyWidgetSnapshot(
-            runningCount: runningRuns.count,
-            topTemplateName: top.templateName,
-            topRealizedPnlUsd: top.realizedPnlUsd,
-            updatedAt: .now
-        ))
+        WidgetCenter.shared.reloadTimelines(ofKind: AureonWidgetKind.strategy)
     }
 
     func beginNewDraft(style: StrategyStyle) {
@@ -136,7 +141,7 @@ final class StrategyViewModel {
         guard let run = try? await repository.setRunStatus(runId: runId, status: status) else { return }
         notifications.notifyStrategyStatus(templateName: run.templateName, status: status)
         if status == .stopped || status == .completed {
-            liveActivity?.endActivity(runId: runId)
+            liveActivity?.endActivity(runId: runId, finalStatusLabelZh: status.labelZh)
         } else {
             liveActivity?.startOrUpdateStrategyRun(runId: run.id, templateName: run.templateName, style: run.style, statusLabelZh: run.status.labelZh, progressPercent: status == .running ? 50 : 0, realizedPnlUsd: run.realizedPnlUsd)
         }
@@ -165,13 +170,23 @@ final class StrategyViewModel {
 
     func runBacktest() async {
         backtestResult = .loading
+        let activityId = "backtest-\(UUID().uuidString)"
+        liveActivity?.startOrUpdateStrategyRun(
+            runId: activityId, templateName: draft.name, style: draft.style, kind: .backtest,
+            statusLabelZh: "回测中", progressPercent: 15, realizedPnlUsd: 0
+        )
         do {
             let request = draft.toBacktestRequest()
             let result = try await repository.runBacktest(request)
             backtestResult = .loaded(result)
             notifications.notifyBacktestCompleted(templateName: draft.name, totalReturnPercent: result.summary.totalReturnPercent)
+            liveActivity?.endActivity(
+                runId: activityId, finalStatusLabelZh: "回测已完成",
+                finalProgressPercent: 100, finalRealizedPnlUsd: result.summary.totalReturnPercent
+            )
         } catch {
             backtestResult = .failed(error.localizedDescription)
+            liveActivity?.endActivity(runId: activityId, finalStatusLabelZh: "回测失败")
         }
     }
 

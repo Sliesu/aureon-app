@@ -207,33 +207,45 @@ enum MockAccountFactory {
 
     static func orders() -> [OrderRecord] {
         (0..<12).map { index -> OrderRecord in
-            let isBitcoin = index.isMultiple(of: 2)
+            let isBTC = index.isMultiple(of: 2)
             let size = 0.02 + Double(index % 4) * 0.01
+            let price: Double = isBTC
+                ? 63_900 + Double(index) * 12
+                : 3_390 + Double(index) * 4
+            let createdAt = Date().addingTimeInterval(-Double(index) * 3_600)
+
             return OrderRecord(
                 id: "order-\(index)",
-                instId: isBitcoin ? "BTC-USDT" : "ETH-USDT",
+                instId: isBTC ? "BTC-USDT" : "ETH-USDT",
                 instType: .spot,
                 side: index.isMultiple(of: 3) ? .sell : .buy,
-                price: isBitcoin ? 63_900 + Double(index) * 12 : 3_390 + Double(index) * 4,
+                price: price,
                 size: size,
                 filledSize: size,
                 state: index.isMultiple(of: 5) ? .canceled : .filled,
-                createdAt: Date().addingTimeInterval(-Double(index) * 3_600)
+                createdAt: createdAt
             )
         }
     }
 
     static func fills() -> [FillRecord] {
         (0..<10).map { index -> FillRecord in
-            let isBitcoin = index.isMultiple(of: 2)
+            let isBTC = index.isMultiple(of: 2)
+            let price: Double = isBTC
+                ? 64_120 + Double(index) * 8
+                : 149.2 + Double(index) * 0.3
+            let size = 0.01 + Double(index % 3) * 0.02
+            let feeUsd = 0.42 + Double(index) * 0.03
+            let filledAt = Date().addingTimeInterval(-Double(index) * 2_700)
+
             return FillRecord(
                 id: "fill-\(index)",
-                instId: isBitcoin ? "BTC-USDT" : "SOL-USDT",
+                instId: isBTC ? "BTC-USDT" : "SOL-USDT",
                 side: index.isMultiple(of: 3) ? .sell : .buy,
-                price: isBitcoin ? 64_120 + Double(index) * 8 : 149.2 + Double(index) * 0.3,
-                size: 0.01 + Double(index % 3) * 0.02,
-                feeUsd: 0.42 + Double(index) * 0.03,
-                filledAt: Date().addingTimeInterval(-Double(index) * 2_700)
+                price: price,
+                size: size,
+                feeUsd: feeUsd,
+                filledAt: filledAt
             )
         }
     }

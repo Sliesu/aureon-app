@@ -2,68 +2,70 @@
 //  StrategyView.swift
 //  aureon-app
 //
-//  策略域主视图：顶部「模板 | Pilot」分段，模板内再分「编辑 / 回测 / 运行」。
-//  对齐 Web 版 StrategyConsole 双 Tab 结构。
+//  策略工作台自适应壳层：总览优先。iPhone（紧凑宽度）用 NavigationStack 逐级导航，
+//  iPad（常规宽度）用 NavigationSplitView 侧栏分栏。总览聚合运行 KPI、活跃策略、
+//  最近回测与模板快捷入口，其余入口（模板库 / 策略回测 / 运行中心 / AI Pilot）
+//  均从总览或侧栏进入，替代此前的两层 segmented + 单一超长 ScrollView。
 //
 
 import SwiftUI
 
-private enum StrategySection: String, CaseIterable, Hashable {
-    case templates = "模板"
-    case pilot = "AI Pilot"
-}
+/// 策略工作台的一级入口，驱动 iPad 侧栏与 iPhone 逐级导航的目的地。
+enum StrategyWorkbenchSection: String, CaseIterable, Identifiable, Hashable {
+    case overview
+    case templates
+    case backtest
+    case runs
+    case pilot
 
-private enum TemplateSubTab: String, CaseIterable, Hashable {
-    case editor = "编辑"
-    case backtest = "回测"
-    case runs = "运行"
+    var id: String { rawValue }
+
+    var titleZh: String {
+        switch self {
+        case .overview: return "总览"
+        case .templates: return "模板库"
+        case .backtest: return "策略回测"
+        case .runs: return "运行中心"
+        case .pilot: return "AI Pilot"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .overview: return "square.grid.2x2.fill"
+        case .templates: return "list.bullet.rectangle.portrait"
+        case .backtest: return "chart.xyaxis.line"
+        case .runs: return "bolt.horizontal.circle"
+        case .pilot: return "sparkles"
+        }
+    }
 }
 
 struct StrategyView: View {
     @Binding var route: StrategyRoute
     @Environment(AppEnvironment.self) private var env
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var strategyViewModel: StrategyViewModel?
     @State private var pilotViewModel: PilotViewModel?
-    @State private var section: StrategySection = .templates
-    @State private var templateSubTab: TemplateSubTab = .editor
+    @State private var selectedSection: StrategyWorkbenchSection = .overview
+    @State private var iPhonePath = NavigationPath()
+    @State private var iPadDetailPath = NavigationPath()
+
+    private var isRegularWidth: Bool { horizontalSizeClass == .regular }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    SectionHeader(kicker: "AUREON VAULT", title: "策略工作台", subtitle: "模板研发、回测验证与 AI 自主巡航，均为本地演示。")
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-
-                    Picker("功能域", selection: $section) {
-                        ForEach(StrategySection.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-
-                    if env.workspaceScope.tradingMode == .spot {
-                        Text("当前为仅现货模式，部分衍生品策略能力将受限。")
-                            .font(AureonFont.body(11))
-                            .foregroundStyle(AureonPalette.signalHold)
-                            .padding(.horizontal, 16)
-                    }
-
-                    switch section {
-                    case .templates:
-                        templatesSection
-                    case .pilot:
-                        if let pilotViewModel {
-                            PilotView(viewModel: pilotViewModel)
-                                .padding(.horizontal, 16)
-                        } else {
-                            LoadingStateView()
-                        }
-                    }
+        Group {
+            if let strategyViewModel, let pilotViewModel {
+                if isRegularWidth {
+                    ipadLayout(strategyViewModel: strategyViewModel, pilotViewModel: pilotViewModel)
+                } else {
+                    iphoneLayout(strategyViewModel: strategyViewModel, pilotViewModel: pilotViewModel)
                 }
-                .padding(.bottom, 24)
+            } else {
+                NavigationStack {
+                    LoadingStateView().navigationTitle("策略").navigationBarTitleDisplayMode(.inline)
+                }
             }
-            .navigationTitle("策略")
-            .navigationBarTitleDisplayMode(.inline)
         }
         .task {
             if strategyViewModel == nil {
@@ -86,60 +88,111 @@ struct StrategyView: View {
         }
     }
 
-    /// 处理来自快捷操作 / Widget / 通知点击的深链请求（运行列表 / 新建模板）。
+    /// 处理来自快捷操作 / Widget / 通知点击的深链请求（运行中心 / 新建模板）。
     private func apply(_ requestedSection: StrategyRoute.Section?) {
         guard let requestedSection else { return }
-        section = .templates
         switch requestedSection {
         case .runs:
-            templateSubTab = .runs
+            navigate(to: .runs)
         case .newTemplate:
-            templateSubTab = .editor
             strategyViewModel?.beginNewDraft(style: .balanced)
+            navigate(to: .templates)
         }
         route.requestedSection = nil
     }
 
-    @ViewBuilder
-    private var templatesSection: some View {
-        if let strategyViewModel {
-            Picker("模板功能", selection: $templateSubTab) {
-                ForEach(TemplateSubTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-
-            switch templateSubTab {
-            case .editor:
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("已有模板").aureonKicker()
-                        Spacer()
-                        Button("新建模板") { strategyViewModel.beginNewDraft(style: .balanced) }
-                            .buttonStyle(GhostButtonStyle())
-                    }
-                    TemplateListView(
-                        viewModel: strategyViewModel,
-                        onEdit: { strategyViewModel.editTemplate($0) },
-                        onStart: { template in
-                            Task { await strategyViewModel.startRun(templateId: template.id) }
-                        }
-                    )
-                    Divider().overlay(Color.white.opacity(0.06))
-                    Text("模板编辑器").aureonKicker()
-                    TemplateEditorView(viewModel: strategyViewModel)
-                        .frame(minHeight: 480)
-                }
-                .padding(.horizontal, 16)
-            case .backtest:
-                BacktestView(viewModel: strategyViewModel)
-                    .padding(.horizontal, 16)
-            case .runs:
-                RunListView(viewModel: strategyViewModel)
-                    .padding(.horizontal, 16)
-            }
+    private func navigate(to section: StrategyWorkbenchSection) {
+        if isRegularWidth {
+            selectedSection = section
+            iPadDetailPath = NavigationPath()
         } else {
-            LoadingStateView()
+            iPhonePath = NavigationPath()
+            if section != .overview { iPhonePath.append(section) }
+        }
+    }
+
+    /// 从任意区域（如总览的模板预览卡片）直接打开某个模板的详情页，
+    /// 不经过「先跳模板库列表、再异步消费待打开 id」的两段式导航，
+    /// 避免双重 push 的时序竞态导致点击「看起来没有反应」。
+    private func openTemplateDetail(_ template: StrategyTemplate) {
+        let target = TemplateDetailTarget(id: template.id)
+        if isRegularWidth {
+            selectedSection = .templates
+            iPadDetailPath = NavigationPath()
+            iPadDetailPath.append(target)
+        } else {
+            iPhonePath = NavigationPath()
+            iPhonePath.append(target)
+        }
+    }
+
+    // MARK: - iPad：侧栏分栏
+
+    private func ipadLayout(strategyViewModel: StrategyViewModel, pilotViewModel: PilotViewModel) -> some View {
+        NavigationSplitView {
+            List {
+                ForEach(StrategyWorkbenchSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                        iPadDetailPath = NavigationPath()
+                    } label: {
+                        HStack {
+                            Label(section.titleZh, systemImage: section.systemImage)
+                                .foregroundStyle(selectedSection == section ? AureonPalette.gold500 : AureonPalette.warmWhite)
+                            Spacer()
+                            if selectedSection == section {
+                                Image(systemName: "checkmark").foregroundStyle(AureonPalette.gold500)
+                            }
+                        }
+                    }
+                    .listRowBackground(selectedSection == section ? AureonPalette.gold500.opacity(0.1) : Color.clear)
+                }
+            }
+            .navigationTitle("策略工作台")
+        } detail: {
+            NavigationStack(path: $iPadDetailPath) {
+                sectionContent(selectedSection, strategyViewModel: strategyViewModel, pilotViewModel: pilotViewModel)
+                    .navigationTitle(selectedSection.titleZh)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationDestination(for: TemplateDetailTarget.self) { target in
+                        TemplateDetailView(viewModel: strategyViewModel, templateId: target.id, onRunStarted: { navigate(to: .runs) })
+                    }
+            }
+        }
+    }
+
+    // MARK: - iPhone：逐级导航
+
+    private func iphoneLayout(strategyViewModel: StrategyViewModel, pilotViewModel: PilotViewModel) -> some View {
+        NavigationStack(path: $iPhonePath) {
+            sectionContent(.overview, strategyViewModel: strategyViewModel, pilotViewModel: pilotViewModel)
+                .navigationTitle("策略工作台")
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(for: StrategyWorkbenchSection.self) { section in
+                    sectionContent(section, strategyViewModel: strategyViewModel, pilotViewModel: pilotViewModel)
+                        .navigationTitle(section.titleZh)
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+                .navigationDestination(for: TemplateDetailTarget.self) { target in
+                    TemplateDetailView(viewModel: strategyViewModel, templateId: target.id, onRunStarted: { navigate(to: .runs) })
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionContent(_ section: StrategyWorkbenchSection, strategyViewModel: StrategyViewModel, pilotViewModel: PilotViewModel) -> some View {
+        switch section {
+        case .overview:
+            StrategyOverviewView(viewModel: strategyViewModel, onNavigate: navigate, onOpenTemplateDetail: openTemplateDetail)
+        case .templates:
+            TemplatesWorkspaceView(viewModel: strategyViewModel, onRunStarted: { navigate(to: .runs) })
+                .padding(16)
+        case .backtest:
+            ScrollView { BacktestView(viewModel: strategyViewModel).padding(16) }
+        case .runs:
+            ScrollView { RunListView(viewModel: strategyViewModel).padding(16) }
+        case .pilot:
+            ScrollView { PilotView(viewModel: pilotViewModel).padding(16) }
         }
     }
 }

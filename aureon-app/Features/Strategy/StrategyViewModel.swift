@@ -19,6 +19,7 @@ final class StrategyViewModel {
     private let notifications: NotificationManager
     private let haptics: HapticsManager
     private let liveActivity: LiveActivityManager?
+    private let aiResearchProvider: BacktestAIResearchProviding
 
     var presets: LoadState<[StrategyPreset]> = .idle
     var templates: LoadState<[StrategyTemplate]> = .idle
@@ -26,23 +27,45 @@ final class StrategyViewModel {
 
     var draft = StrategyTemplateDraft()
     var isEditingTemplateId: String?
+    private var draftBaseline = StrategyTemplateDraft()
+    var draftSaveError: String?
+    var draftSavedAt: Date?
+    /// 草稿相对最近一次加载/保存基线是否发生改动，供编辑页展示脏数据提示。
+    var isDraftDirty: Bool { draft != draftBaseline }
+    /// `TemplatesWorkspaceView` 监听该字段以决定何时把编辑器推入导航栈，
+    /// 消费后应重置为 nil，避免重复触发导航。
+    enum TemplateNavigationRequest: Equatable { case newDraft, editDraft }
+    var pendingTemplateNavigation: TemplateNavigationRequest?
 
     var backtestResult: LoadState<BacktestResult> = .idle
     var walkForwardResult: LoadState<WalkForwardResult> = .idle
     var paramScanResult: LoadState<ParamScanResult> = .idle
+    /// 针对当前 `backtestResult` 的 AI 研判。默认 Provider 为占位实现（见
+    /// `BacktestAIResearchProvider.swift`），真实接入 LLM 后端前始终展示「即将上线」。
+    var aiResearch: LoadState<BacktestAIResearch> = .idle
 
     var paperRun = PaperRunState()
     private var paperTask: Task<Void, Never>?
 
-    var selectedRunId: String?
-    var runOrders: LoadState<[TemplateOrderRow]> = .idle
-    var runTicks: LoadState<[TemplateRunTick]> = .idle
+    /// 启动运行失败的原因（如模板已有活跃实例），供总览/模板库展示提示。
+    var startRunError: String?
+    /// 正在执行生命周期动作（暂停/恢复/归档）的运行 id，用于禁用重复点击。
+    var pendingRunActions: Set<String> = []
+    /// 按 runId 记录的最近一次生命周期动作失败原因。
+    var runActionErrors: [String: String] = [:]
 
-    init(repository: DataRepository, notifications: NotificationManager, haptics: HapticsManager, liveActivity: LiveActivityManager? = nil) {
+    init(
+        repository: DataRepository,
+        notifications: NotificationManager,
+        haptics: HapticsManager,
+        liveActivity: LiveActivityManager? = nil,
+        aiResearchProvider: BacktestAIResearchProviding = NoOpBacktestAIResearchProvider()
+    ) {
         self.repository = repository
         self.notifications = notifications
         self.haptics = haptics
         self.liveActivity = liveActivity
+        self.aiResearchProvider = aiResearchProvider
     }
 
     func loadAll() async {
@@ -101,26 +124,70 @@ final class StrategyViewModel {
 
     func beginNewDraft(style: StrategyStyle) {
         draft = StrategyTemplateDraft(style: style)
+        draftBaseline = draft
+        draftSaveError = nil
+        draftSavedAt = nil
         isEditingTemplateId = nil
+        pendingTemplateNavigation = .newDraft
     }
 
     func editTemplate(_ template: StrategyTemplate) {
         draft = StrategyTemplateDraft(template: template)
+        draftBaseline = draft
+        draftSaveError = nil
+        draftSavedAt = nil
         isEditingTemplateId = template.id
+        pendingTemplateNavigation = .editDraft
     }
 
-    func saveDraft() async {
+    /// 供「策略回测」在不进入编辑页的情况下切换回测对象（不同策略模板）。
+    /// 切换后清空旧结果，避免误把上一个策略的回测数据当作新策略的表现。
+    func selectTemplateForBacktest(_ template: StrategyTemplate) {
+        guard isEditingTemplateId != template.id else { return }
+        draft = StrategyTemplateDraft(template: template)
+        draftBaseline = draft
+        draftSaveError = nil
+        draftSavedAt = nil
+        isEditingTemplateId = template.id
+        backtestResult = .idle
+        walkForwardResult = .idle
+        paramScanResult = .idle
+        aiResearch = .idle
+    }
+
+    /// 请求针对当前回测结果的 AI 研判。默认 Provider 会抛出 `.notConfigured`，
+    /// 此处统一转换为友好的占位说明，而非把底层网络错误文案直接展示给用户。
+    func requestAIResearch() async {
+        guard case .loaded(let result) = backtestResult else { return }
+        aiResearch = .loading
+        do {
+            let research = try await aiResearchProvider.generateResearch(for: result)
+            aiResearch = .loaded(research)
+        } catch {
+            aiResearch = .failed("AI 研判功能即将上线，需接入后端 LLM API 后启用。")
+        }
+    }
+
+    @discardableResult
+    func saveDraft() async -> Bool {
         let template = draft.toTemplate(existingId: isEditingTemplateId)
         do {
             if isEditingTemplateId != nil {
                 _ = try await repository.updateTemplate(template)
             } else {
                 _ = try await repository.createTemplate(template)
+                isEditingTemplateId = template.id
             }
             haptics.success()
+            draftBaseline = draft
+            draftSavedAt = .now
+            draftSaveError = nil
             await loadTemplates()
+            return true
         } catch {
             haptics.error()
+            draftSaveError = Self.message(for: error)
+            return false
         }
     }
 
@@ -129,47 +196,96 @@ final class StrategyViewModel {
         await loadTemplates()
     }
 
-    func startRun(templateId: String) async {
-        guard let run = try? await repository.startRun(templateId: templateId) else { return }
-        notifications.notifyStrategyStatus(templateName: run.templateName, status: .running)
-        haptics.impact(.medium)
-        liveActivity?.startOrUpdateStrategyRun(runId: run.id, templateName: run.templateName, style: run.style, statusLabelZh: run.status.labelZh, progressPercent: 0, realizedPnlUsd: run.realizedPnlUsd)
-        await loadRuns()
+    /// 启动新运行。同一模板存在活跃（运行中/暂停中）实例时，仓库层会拒绝并返回错误，
+    /// 此处不再用 `try?` 吞掉失败，而是记录到 `startRunError` 供 UI 展示。
+    @discardableResult
+    func startRun(templateId: String) async -> Bool {
+        startRunError = nil
+        do {
+            let run = try await repository.startRun(templateId: templateId)
+            notifications.notifyStrategyStatus(templateName: run.templateName, status: .running)
+            haptics.impact(.medium)
+            liveActivity?.startOrUpdateStrategyRun(runId: run.id, templateName: run.templateName, style: run.style, statusLabelZh: run.status.labelZh, progressPercent: 0, realizedPnlUsd: run.realizedPnlUsd)
+            await loadRuns()
+            return true
+        } catch {
+            haptics.error()
+            startRunError = Self.message(for: error)
+            return false
+        }
     }
 
-    func setRunStatus(runId: String, status: RunStatus) async {
-        guard let run = try? await repository.setRunStatus(runId: runId, status: status) else { return }
-        notifications.notifyStrategyStatus(templateName: run.templateName, status: status)
-        if status == .stopped || status == .completed {
-            liveActivity?.endActivity(runId: runId, finalStatusLabelZh: status.labelZh)
+    /// 受约束的生命周期动作入口：仅接受 `RunLifecycleAction`，非法跃迁由仓库层拒绝。
+    /// 成功后局部更新 `runs` 列表并同步通知 / Live Activity / Widget，避免整表刷新失败时
+    /// 造成多端状态不一致；失败则记录到 `runActionErrors[runId]`，不修改本地状态。
+    func performRunAction(runId: String, action: RunLifecycleAction) async {
+        guard !pendingRunActions.contains(runId) else { return }
+        pendingRunActions.insert(runId)
+        runActionErrors[runId] = nil
+        defer { pendingRunActions.remove(runId) }
+        do {
+            let run = try await repository.performRunAction(runId: runId, action: action)
+            applyRunLocally(run)
+            notifications.notifyStrategyStatus(templateName: run.templateName, status: run.status)
+            if run.status.isTerminal {
+                liveActivity?.endActivity(runId: runId, finalStatusLabelZh: run.status.labelZh, finalRealizedPnlUsd: run.realizedPnlUsd)
+            } else {
+                liveActivity?.startOrUpdateStrategyRun(runId: run.id, templateName: run.templateName, style: run.style, statusLabelZh: run.status.labelZh, progressPercent: run.status == .running ? 50 : 0, realizedPnlUsd: run.realizedPnlUsd)
+            }
+            haptics.impact(.light)
+        } catch {
+            haptics.error()
+            runActionErrors[runId] = Self.message(for: error)
+        }
+    }
+
+    /// 将仓库返回的最新运行实例合并进现有列表，避免整次 reload 引入的竞态或闪烁。
+    private func applyRunLocally(_ run: TemplateRun) {
+        guard case .loaded(var list) = runs else {
+            Task { await loadRuns() }
+            return
+        }
+        if let index = list.firstIndex(where: { $0.id == run.id }) {
+            list[index] = run
         } else {
-            liveActivity?.startOrUpdateStrategyRun(runId: run.id, templateName: run.templateName, style: run.style, statusLabelZh: run.status.labelZh, progressPercent: status == .running ? 50 : 0, realizedPnlUsd: run.realizedPnlUsd)
+            list.insert(run, at: 0)
         }
-        await loadRuns()
+        runs = .loaded(list)
+        syncWidgetSnapshot(list)
     }
 
-    func openRunDetail(runId: String) async {
-        selectedRunId = runId
-        runOrders = .loading
-        runTicks = .loading
-        do {
-            let orders = try await repository.fetchRunOrders(runId: runId)
-            runOrders = orders.isEmpty ? .empty : .loaded(orders)
-        } catch {
-            runOrders = .failed(error.localizedDescription)
-        }
-        do {
-            let ticks = try await repository.fetchRunTicks(runId: runId)
-            runTicks = ticks.isEmpty ? .empty : .loaded(ticks)
-        } catch {
-            runTicks = .failed(error.localizedDescription)
-        }
+    private static func message(for error: Error) -> String {
+        if let envelope = error as? APIErrorEnvelope { return envelope.message }
+        return error.localizedDescription
+    }
+
+    /// 供 `RunDetailView` 按 runId 独立拉取订单，返回值由视图自持有的 `@State` 承接，
+    /// 避免共享单一状态在快速切换详情页时产生覆盖竞态。
+    func fetchRunOrders(runId: String) async throws -> [TemplateOrderRow] {
+        try await repository.fetchRunOrders(runId: runId)
+    }
+
+    func fetchRunTicks(runId: String) async throws -> [TemplateRunTick] {
+        try await repository.fetchRunTicks(runId: runId)
+    }
+
+    /// 在当前已加载的 `runs` 列表中查找某个运行实例的最新快照。
+    func run(withId runId: String) -> TemplateRun? {
+        guard case .loaded(let list) = runs else { return nil }
+        return list.first { $0.id == runId }
+    }
+
+    /// 已加载的模板列表，供「策略回测」的模板切换菜单使用。
+    var loadedTemplates: [StrategyTemplate] {
+        guard case .loaded(let list) = templates else { return [] }
+        return list
     }
 
     // MARK: - 回测
 
     func runBacktest() async {
         backtestResult = .loading
+        aiResearch = .idle
         let activityId = "backtest-\(UUID().uuidString)"
         liveActivity?.startOrUpdateStrategyRun(
             runId: activityId, templateName: draft.name, style: draft.style, kind: .backtest,
@@ -264,12 +380,14 @@ struct StrategyTemplateDraft: Equatable {
     var instType: InstrumentType = .spot
     var frequencyKind: StrategyFrequencyKind = .interval
     var intervalSeconds: Int = 300
+    var cronExpression: String = "*/5 * * * *"
     var sizingUsd: Double = 500
     var leverage: Double = 1
     var takeProfitPercent: Double = 6
     var stopLossPercent: Double = 3
     var maxLeverage: Double = 5
     var bar: CandleInterval = .fifteenMinutes
+    var ruleParams: [String: Double] = ["fastMa": 7, "slowMa": 25, "rsiPeriod": 14]
 
     init() {}
 
@@ -285,11 +403,13 @@ struct StrategyTemplateDraft: Equatable {
         instType = template.instType
         frequencyKind = template.frequency.kind
         intervalSeconds = template.frequency.intervalSeconds
+        cronExpression = template.frequency.cronExpression ?? cronExpression
         sizingUsd = template.entrySizing.usdAmount
         leverage = template.leverage
         takeProfitPercent = template.risk.takeProfitPercent
         stopLossPercent = template.risk.stopLossPercent
         maxLeverage = template.risk.maxLeverage
+        if !template.ruleParams.isEmpty { ruleParams = template.ruleParams }
     }
 
     func toTemplate(existingId: String?) -> StrategyTemplate {
@@ -299,11 +419,11 @@ struct StrategyTemplateDraft: Equatable {
             style: style,
             instId: instId,
             instType: instType,
-            frequency: StrategyFrequency(kind: frequencyKind, intervalSeconds: intervalSeconds, cronExpression: nil),
+            frequency: StrategyFrequency(kind: frequencyKind, intervalSeconds: intervalSeconds, cronExpression: frequencyKind == .cron ? cronExpression : nil),
             entrySizing: EntrySizing(usdAmount: sizingUsd, percentOfEquity: nil),
             leverage: leverage,
             risk: RiskConfig(takeProfitPercent: takeProfitPercent, stopLossPercent: stopLossPercent, maxLeverage: maxLeverage),
-            ruleParams: ["fastMa": 7, "slowMa": 25, "rsiPeriod": 14],
+            ruleParams: ruleParams,
             createdAt: .now,
             updatedAt: .now,
             lastBacktestSummary: nil

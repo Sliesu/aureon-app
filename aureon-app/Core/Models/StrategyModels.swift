@@ -120,6 +120,8 @@ struct StrategyPreset: Codable, Equatable, Identifiable {
 enum RunStatus: String, Codable, CaseIterable, Hashable {
     case running
     case paused
+    /// 线上原始值保留 `stopped` 以兼容既有 API 契约，但 UI 统一显示为「已归档」，
+    /// 与 `completed`/`error` 一样属于不可逆终态。
     case stopped
     case completed
     case error
@@ -128,7 +130,7 @@ enum RunStatus: String, Codable, CaseIterable, Hashable {
         switch self {
         case .running: return "运行中"
         case .paused: return "已暂停"
-        case .stopped: return "已停止"
+        case .stopped: return "已归档"
         case .completed: return "已完成"
         case .error: return "异常"
         }
@@ -143,6 +145,60 @@ enum RunStatus: String, Codable, CaseIterable, Hashable {
         case .error: return .sell
         }
     }
+
+    /// 是否为不可逆终态：终态运行不再允许任何生命周期操作，仅可查看历史详情。
+    var isTerminal: Bool {
+        switch self {
+        case .stopped, .completed, .error: return true
+        case .running, .paused: return false
+        }
+    }
+
+    /// 是否计入「同一模板仅允许一个活跃实例」的活跃集合。
+    var isActive: Bool {
+        switch self {
+        case .running, .paused: return true
+        case .stopped, .completed, .error: return false
+        }
+    }
+
+    /// 该状态下允许触发的生命周期动作，用于驱动 UI 按钮与仓库层校验，
+    /// 保证「运行中 → 暂停 → 恢复」可逆，而「结束并归档」不可逆。
+    var availableActions: Set<RunLifecycleAction> {
+        switch self {
+        case .running: return [.pause, .archive]
+        case .paused: return [.resume, .archive]
+        case .stopped, .completed, .error: return []
+        }
+    }
+}
+
+/// 受约束的运行生命周期动作：仅允许 暂停 / 恢复 / 结束并归档 三种显式动作，
+/// 杜绝 ViewModel 或视图直接写入任意 `RunStatus` 造成非法状态跃迁。
+enum RunLifecycleAction: String, CaseIterable, Sendable, Hashable {
+    case pause
+    case resume
+    case archive
+
+    /// 动作成功后对应的目标状态（`archive` 映射到线上兼容值 `stopped`）。
+    var resultingStatus: RunStatus {
+        switch self {
+        case .pause: return .paused
+        case .resume: return .running
+        case .archive: return .stopped
+        }
+    }
+
+    var titleZh: String {
+        switch self {
+        case .pause: return "暂停"
+        case .resume: return "恢复"
+        case .archive: return "结束并归档"
+        }
+    }
+
+    /// 仅 `archive` 不可逆，需要二次确认。
+    var requiresConfirmation: Bool { self == .archive }
 }
 
 struct TemplateRun: Codable, Equatable, Identifiable {

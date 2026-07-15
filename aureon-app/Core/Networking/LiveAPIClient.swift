@@ -129,8 +129,10 @@ actor LiveAPIClient: DataRepository {
     func deleteTemplate(id: String) async throws { let _: EmptyResponse = try await request(.strategyTemplate(id: id), method: "DELETE") }
     func fetchRuns() async throws -> [TemplateRun] { try await request(.strategyRuns) }
     func startRun(templateId: String) async throws -> TemplateRun { try await request(.strategyRuns, method: "POST", body: ["templateId": templateId]) }
-    func setRunStatus(runId: String, status: RunStatus) async throws -> TemplateRun {
-        try await request(.strategyRunLifecycle(id: runId, action: status.rawValue), method: "POST")
+    func performRunAction(runId: String, action: RunLifecycleAction) async throws -> TemplateRun {
+        // 服务端契约的 {action} 路径段沿用 running/paused/stopped 字面量（见 Docs/openapi.yaml），
+        // 客户端内部的 pause/resume/archive 状态机在此处映射为对应的目标状态字符串。
+        try await request(.strategyRunLifecycle(id: runId, action: action.resultingStatus.rawValue), method: "POST")
     }
     func fetchRunOrders(runId: String) async throws -> [TemplateOrderRow] { try await request(.strategyRunOrders(id: runId)) }
     func fetchRunTicks(runId: String) async throws -> [TemplateRunTick] { try await request(.strategyRunTicks(id: runId)) }

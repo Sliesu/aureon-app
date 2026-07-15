@@ -12,14 +12,9 @@ struct BacktestView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("回测标的：\(viewModel.draft.instId)").font(AureonFont.body(13, weight: .semibold)).foregroundStyle(AureonPalette.warmWhite)
-                Spacer()
-                Button("运行回测") { Task { await viewModel.runBacktest() } }
-                    .buttonStyle(GoldCapsuleButtonStyle())
-            }
+            strategyPickerBar
 
-            backtestSection
+            BacktestResultSection(viewModel: viewModel)
 
             Divider().overlay(Color.white.opacity(0.06))
 
@@ -39,33 +34,38 @@ struct BacktestView: View {
         }
     }
 
-    @ViewBuilder
-    private var backtestSection: some View {
-        switch viewModel.backtestResult {
-        case .idle:
-            EmptyStateView(glyph: "play.rectangle", title: "尚未运行回测", message: "点击「运行回测」查看权益曲线与交易明细。")
-        case .loading:
-            LoadingStateView(message: "正在回测…")
-        case .empty:
-            EmptyStateView(title: "无可用历史数据", message: "该标的暂无足够历史 K 线用于回测。")
-        case .failed(let message):
-            ErrorStateView(message: message, onRetry: { Task { await viewModel.runBacktest() } })
-        case .loaded(let result):
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    HStack(spacing: 16) {
-                        StatChip(label: "总收益", value: AureonFormat.percent(result.summary.totalReturnPercent, decimals: 1), tint: result.summary.totalReturnPercent >= 0 ? AureonPalette.signalBuy : AureonPalette.signalSell)
-                        StatChip(label: "胜率", value: AureonFormat.percent(result.summary.winRatePercent, decimals: 0, showsSign: false))
-                        StatChip(label: "最大回撤", value: AureonFormat.percent(result.summary.maxDrawdownPercent, decimals: 1, showsSign: false))
-                        StatChip(label: "夏普比率", value: AureonFormat.price(result.summary.sharpeRatio, decimals: 2))
+    /// 策略切换菜单：支持对模板库中的任意策略执行回测，而非只能回测当前编辑草稿。
+    private var strategyPickerBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Menu {
+                    ForEach(viewModel.loadedTemplates) { template in
+                        Button {
+                            viewModel.selectTemplateForBacktest(template)
+                        } label: {
+                            if template.id == viewModel.isEditingTemplateId {
+                                Label(template.name, systemImage: "checkmark")
+                            } else {
+                                Text(template.name)
+                            }
+                        }
                     }
-                    ShareLink(item: shareText(for: result)) {
-                        Image(systemName: "square.and.arrow.up")
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: viewModel.draft.style.accentGlyph).foregroundStyle(AureonPalette.gold500)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("回测策略：\(viewModel.draft.name)").font(AureonFont.body(13, weight: .semibold)).foregroundStyle(AureonPalette.warmWhite)
+                            Text(viewModel.draft.instId).font(AureonFont.mono(11)).foregroundStyle(AureonPalette.mutedSlate)
+                        }
+                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 10)).foregroundStyle(AureonPalette.mutedSlate)
                     }
                 }
-                EquityCurveChart(points: result.equityCurve, trades: result.trades)
-                Text("交易明细（共 \(result.trades.count) 笔）").font(AureonFont.body(12, weight: .semibold)).foregroundStyle(AureonPalette.mutedSlate)
-                TradeListView(trades: result.trades)
+                Spacer()
+                Button("运行回测") { Task { await viewModel.runBacktest() } }
+                    .buttonStyle(GoldCapsuleButtonStyle())
+            }
+            if viewModel.loadedTemplates.isEmpty {
+                Text("模板库暂无可选策略，先在「模板库」创建一个。").font(AureonFont.body(11)).foregroundStyle(AureonPalette.mutedSlate)
             }
         }
     }
@@ -96,10 +96,6 @@ struct BacktestView: View {
         default:
             EmptyView()
         }
-    }
-
-    private func shareText(for result: BacktestResult) -> String {
-        "AUREON 回测摘要\n标的：\(result.request.instId)\n总收益：\(AureonFormat.percent(result.summary.totalReturnPercent, decimals: 1))\n胜率：\(AureonFormat.percent(result.summary.winRatePercent, decimals: 0, showsSign: false))\n最大回撤：\(AureonFormat.percent(result.summary.maxDrawdownPercent, decimals: 1, showsSign: false))\n（本地演示数据，非真实交易结果）"
     }
 
     private var paperTradingSection: some View {

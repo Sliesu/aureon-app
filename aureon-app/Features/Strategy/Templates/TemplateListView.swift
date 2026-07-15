@@ -2,11 +2,15 @@
 //  TemplateListView.swift
 //  aureon-app
 //
+//  点击卡片主体进入「策略详情」；编辑 / 启动运行作为独立按钮，避免嵌套 Button
+//  吞掉外层点击手势。
+//
 
 import SwiftUI
 
 struct TemplateListView: View {
     @Bindable var viewModel: StrategyViewModel
+    let onOpenDetail: (StrategyTemplate) -> Void
     let onEdit: (StrategyTemplate) -> Void
     let onStart: (StrategyTemplate) -> Void
 
@@ -21,7 +25,12 @@ struct TemplateListView: View {
         case .loaded(let templates):
             LazyVStack(spacing: 10) {
                 ForEach(templates) { template in
-                    TemplateCard(template: template, onEdit: { onEdit(template) }, onStart: { onStart(template) })
+                    TemplateCard(
+                        template: template,
+                        onOpenDetail: { onOpenDetail(template) },
+                        onEdit: { onEdit(template) },
+                        onStart: { onStart(template) }
+                    )
                 }
             }
         }
@@ -30,6 +39,7 @@ struct TemplateListView: View {
 
 private struct TemplateCard: View {
     let template: StrategyTemplate
+    let onOpenDetail: () -> Void
     let onEdit: () -> Void
     let onStart: () -> Void
 
@@ -43,6 +53,7 @@ private struct TemplateCard: View {
                 }
                 Spacer()
                 GoldChip(text: template.instType.labelZh)
+                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(AureonPalette.mutedSlate)
             }
 
             if let summary = template.lastBacktestSummary {
@@ -56,11 +67,15 @@ private struct TemplateCard: View {
             HStack(spacing: 10) {
                 Button("编辑", action: onEdit).buttonStyle(GhostButtonStyle())
                 Button("启动运行", action: onStart).buttonStyle(GoldCapsuleButtonStyle())
+                Spacer()
             }
         }
         .padding(12)
         .glassCard(style: .panel, padding: 0)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenDetail)
         .contextMenu {
+            Button("查看详情", action: onOpenDetail)
             Button("编辑", action: onEdit)
             Button("启动运行", action: onStart)
         }

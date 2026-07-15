@@ -36,6 +36,14 @@ struct TemplateEditorView: View {
                 .pickerStyle(.segmented)
                 if viewModel.draft.frequencyKind == .interval {
                     Stepper("每 \(viewModel.draft.intervalSeconds) 秒", value: $viewModel.draft.intervalSeconds, in: 30...3_600, step: 30)
+                } else {
+                    TextField("Cron 表达式", text: $viewModel.draft.cronExpression)
+                        .font(AureonFont.mono(13))
+                        .autocorrectionDisabled()
+                    Text("如 */5 * * * * 表示每 5 分钟触发一次。").font(AureonFont.body(10)).foregroundStyle(AureonPalette.mutedSlate)
+                }
+                Picker("回测 K 线周期", selection: $viewModel.draft.bar) {
+                    ForEach(CandleInterval.allCases) { Text($0.labelZh).tag($0) }
                 }
             }
 
@@ -49,6 +57,20 @@ struct TemplateEditorView: View {
             Section("风控") {
                 Stepper("止盈 \(AureonFormat.percent(viewModel.draft.takeProfitPercent, decimals: 1))", value: $viewModel.draft.takeProfitPercent, in: 1...30, step: 0.5)
                 Stepper("止损 \(AureonFormat.percent(-viewModel.draft.stopLossPercent, decimals: 1, showsSign: false))", value: $viewModel.draft.stopLossPercent, in: 1...20, step: 0.5)
+            }
+
+            Section("规则参数") {
+                ForEach(Array(viewModel.draft.ruleParams.keys).sorted(), id: \.self) { key in
+                    Stepper(
+                        "\(key) \(Int(viewModel.draft.ruleParams[key] ?? 0))",
+                        value: Binding(
+                            get: { viewModel.draft.ruleParams[key] ?? 0 },
+                            set: { viewModel.draft.ruleParams[key] = $0 }
+                        ),
+                        in: 1...200,
+                        step: 1
+                    )
+                }
             }
 
             Section {

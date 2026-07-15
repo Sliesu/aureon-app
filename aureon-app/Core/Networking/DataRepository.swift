@@ -51,8 +51,11 @@ protocol DataRepository: Sendable {
     func updateTemplate(_ template: StrategyTemplate) async throws -> StrategyTemplate
     func deleteTemplate(id: String) async throws
     func fetchRuns() async throws -> [TemplateRun]
+    /// 启动运行：若模板已存在运行中/暂停中的活跃实例，实现方需抛出错误而非静默创建重复实例。
     func startRun(templateId: String) async throws -> TemplateRun
-    func setRunStatus(runId: String, status: RunStatus) async throws -> TemplateRun
+    /// 显式生命周期动作（暂停/恢复/结束并归档）。实现方需校验 `action` 是否在
+    /// 当前 `TemplateRun.status.availableActions` 中，非法跃迁应抛出错误。
+    func performRunAction(runId: String, action: RunLifecycleAction) async throws -> TemplateRun
     func fetchRunOrders(runId: String) async throws -> [TemplateOrderRow]
     func fetchRunTicks(runId: String) async throws -> [TemplateRunTick]
 

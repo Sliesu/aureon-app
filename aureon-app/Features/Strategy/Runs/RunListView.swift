@@ -2,14 +2,16 @@
 //  RunListView.swift
 //  aureon-app
 //
-//  运行实例列表：状态、暂停/恢复/停止、进入详情查看订单与 tick 日志。
+//  运行中心：分「活跃运行 / 历史归档」两区；操作按钮严格由状态机
+//  （`RunStatus.availableActions`）生成，归档前二次确认，操作中禁用重复点击。
 //
 
 import SwiftUI
 
 struct RunListView: View {
     @Bindable var viewModel: StrategyViewModel
-    @State private var openDetailRunId: String?
+    @State private var navigationTarget: RunDetailTarget?
+    @State private var pendingArchiveRunId: String?
 
     var body: some View {
         Group {
@@ -17,36 +19,76 @@ struct RunListView: View {
             case .idle, .loading:
                 LoadingStateView()
             case .empty:
-                EmptyStateView(title: "暂无运行实例", message: "在「模板」中启动一个策略以开始运行。")
+                EmptyStateView(glyph: "bolt.horizontal.circle", title: "暂无运行实例", message: "在「模板库」中选择一个模板并启动运行。")
             case .failed(let message):
                 ErrorStateView(message: message, onRetry: { Task { await viewModel.loadRuns() } })
             case .loaded(let runs):
-                LazyVStack(spacing: 10) {
+                let active = runs.filter { !$0.status.isTerminal }
+                let archived = runs.filter { $0.status.isTerminal }
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    section(title: "活跃运行（\(active.count)）", runs: active, emptyMessage: "暂无运行中或已暂停的实例。")
+                    section(title: "历史归档（\(archived.count)）", runs: archived, emptyMessage: "尚无已归档 / 已完成 / 异常的历史实例。")
+                }
+            }
+        }
+        .navigationDestination(item: $navigationTarget) { target in
+            RunDetailView(viewModel: viewModel, runId: target.id)
+        }
+        .confirmationDialog(
+            "结束并归档该运行？",
+            isPresented: Binding(get: { pendingArchiveRunId != nil }, set: { if !$0 { pendingArchiveRunId = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("结束并归档", role: .destructive) {
+                if let runId = pendingArchiveRunId {
+                    Task { await viewModel.performRunAction(runId: runId, action: .archive) }
+                }
+                pendingArchiveRunId = nil
+            }
+            Button("取消", role: .cancel) { pendingArchiveRunId = nil }
+        } message: {
+            Text("归档后不可恢复，需要在模板库重新启动才能创建新实例。")
+        }
+    }
+
+    @ViewBuilder
+    private func section(title: String, runs: [TemplateRun], emptyMessage: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).aureonKicker()
+            if runs.isEmpty {
+                Text(emptyMessage).font(AureonFont.body(12)).foregroundStyle(AureonPalette.mutedSlate)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 12)], spacing: 12) {
                     ForEach(runs) { run in
-                        RunCard(run: run, onPause: { Task { await viewModel.setRunStatus(runId: run.id, status: .paused) } },
-                                onResume: { Task { await viewModel.setRunStatus(runId: run.id, status: .running) } },
-                                onStop: { Task { await viewModel.setRunStatus(runId: run.id, status: .stopped) } },
-                                onOpenDetail: { openDetailRunId = run.id })
+                        RunCard(
+                            run: run,
+                            isPending: viewModel.pendingRunActions.contains(run.id),
+                            errorMessage: viewModel.runActionErrors[run.id],
+                            onAction: { action in
+                                if action.requiresConfirmation {
+                                    pendingArchiveRunId = run.id
+                                } else {
+                                    Task { await viewModel.performRunAction(runId: run.id, action: action) }
+                                }
+                            },
+                            onOpenDetail: { navigationTarget = RunDetailTarget(id: run.id) }
+                        )
                     }
                 }
             }
         }
-        .sheet(item: Binding(
-            get: { openDetailRunId.map { RunDetailTarget(id: $0) } },
-            set: { openDetailRunId = $0?.id }
-        )) { target in
-            RunDetailView(viewModel: viewModel, runId: target.id)
-        }
     }
 }
 
-private struct RunDetailTarget: Identifiable { let id: String }
+struct RunDetailTarget: Identifiable, Hashable {
+    let id: String
+}
 
 private struct RunCard: View {
     let run: TemplateRun
-    let onPause: () -> Void
-    let onResume: () -> Void
-    let onStop: () -> Void
+    let isPending: Bool
+    let errorMessage: String?
+    let onAction: (RunLifecycleAction) -> Void
     let onOpenDetail: () -> Void
 
     var body: some View {
@@ -71,14 +113,20 @@ private struct RunCard: View {
                 }
             }
 
+            if let errorMessage {
+                Text(errorMessage).font(AureonFont.body(11)).foregroundStyle(AureonPalette.signalSell)
+            }
+
             HStack(spacing: 10) {
-                if run.status == .running {
-                    Button("暂停", action: onPause).buttonStyle(GhostButtonStyle())
-                } else if run.status == .paused {
-                    Button("恢复", action: onResume).buttonStyle(GhostButtonStyle())
+                ForEach(Array(run.status.availableActions).sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { action in
+                    if action == .archive {
+                        Button(action.titleZh) { onAction(action) }.buttonStyle(GhostButtonStyle()).disabled(isPending)
+                    } else {
+                        Button(action.titleZh) { onAction(action) }.buttonStyle(GoldCapsuleButtonStyle()).disabled(isPending)
+                    }
                 }
-                if run.status != .stopped {
-                    Button("停止", action: onStop).buttonStyle(GhostButtonStyle())
+                if isPending {
+                    ProgressView().controlSize(.small)
                 }
                 Spacer()
                 Button("详情", action: onOpenDetail).buttonStyle(GhostButtonStyle())
@@ -86,5 +134,6 @@ private struct RunCard: View {
         }
         .padding(12)
         .glassCard(style: .panel, padding: 0)
+        .opacity(isPending ? 0.7 : 1)
     }
 }

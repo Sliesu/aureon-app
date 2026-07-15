@@ -9,8 +9,9 @@ import SwiftUI
 
 struct PilotView: View {
     @Bindable var viewModel: PilotViewModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showCreateSheet = false
-    @State private var expandedSessionId: String?
+    @State private var decisionLogTarget: PilotDecisionLogTarget?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -27,19 +28,36 @@ struct PilotView: View {
 
             sessionsSection
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("持仓").aureonKicker()
-                    holdingsSection
+            if horizontalSizeClass == .regular {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("持仓").aureonKicker()
+                        holdingsSection
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("挂单").aureonKicker()
+                        pendingOrdersSection
+                    }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("挂单").aureonKicker()
-                    pendingOrdersSection
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("持仓").aureonKicker()
+                        holdingsSection
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("挂单").aureonKicker()
+                        pendingOrdersSection
+                    }
                 }
             }
         }
         .sheet(isPresented: $showCreateSheet) {
             PilotSessionFormView(viewModel: viewModel)
+        }
+        .navigationDestination(item: $decisionLogTarget) { target in
+            PilotDecisionLogPage(sessionName: target.sessionName, state: viewModel.decisionsBySession[target.id] ?? .idle)
+                .task { await viewModel.loadDecisions(sessionId: target.id) }
         }
     }
 
@@ -54,15 +72,10 @@ struct PilotView: View {
                 ForEach(sessions) { session in
                     PilotSessionCard(
                         session: session,
-                        isExpanded: expandedSessionId == session.id,
-                        onToggleExpand: {
-                            expandedSessionId = expandedSessionId == session.id ? nil : session.id
-                            if expandedSessionId != nil { Task { await viewModel.loadDecisions(sessionId: session.id) } }
-                        },
+                        onOpenDecisionLog: { decisionLogTarget = PilotDecisionLogTarget(id: session.id, sessionName: session.name) },
                         onPause: { Task { await viewModel.setStatus(sessionId: session.id, status: .paused) } },
                         onResume: { Task { await viewModel.setStatus(sessionId: session.id, status: .running) } },
-                        onStop: { Task { await viewModel.setStatus(sessionId: session.id, status: .stopped) } },
-                        decisions: viewModel.decisionsBySession[session.id] ?? .idle
+                        onStop: { Task { await viewModel.setStatus(sessionId: session.id, status: .stopped) } }
                     )
                 }
             }
@@ -119,14 +132,17 @@ struct PilotView: View {
     }
 }
 
+struct PilotDecisionLogTarget: Identifiable, Hashable {
+    let id: String
+    let sessionName: String
+}
+
 private struct PilotSessionCard: View {
     let session: AiPilotSession
-    let isExpanded: Bool
-    let onToggleExpand: () -> Void
+    let onOpenDecisionLog: () -> Void
     let onPause: () -> Void
     let onResume: () -> Void
     let onStop: () -> Void
-    let decisions: LoadState<[AiPilotDecision]>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -150,11 +166,7 @@ private struct PilotSessionCard: View {
                     Button("停止", action: onStop).buttonStyle(GhostButtonStyle())
                 }
                 Spacer()
-                Button(isExpanded ? "收起日志" : "查看决策日志", action: onToggleExpand).buttonStyle(GhostButtonStyle())
-            }
-
-            if isExpanded {
-                DecisionLogView(state: decisions)
+                Button("查看决策日志", action: onOpenDecisionLog).buttonStyle(GhostButtonStyle())
             }
         }
         .padding(12)
@@ -162,30 +174,40 @@ private struct PilotSessionCard: View {
     }
 }
 
-private struct DecisionLogView: View {
+/// 决策日志改为独立详情页而非卡片内联展开，避免紧凑宽度下卡片无限拉长。
+struct PilotDecisionLogPage: View {
+    let sessionName: String
     let state: LoadState<[AiPilotDecision]>
 
     var body: some View {
-        switch state {
-        case .idle, .loading: LoadingStateView(message: "加载决策日志…")
-        case .empty: EmptyStateView(title: "暂无决策", message: "该会话尚未产生决策记录。")
-        case .failed(let message): ErrorStateView(message: message)
-        case .loaded(let decisions):
+        ScrollView {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(decisions) { decision in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            StatusBadge(text: decision.action.labelZh, tint: decision.action == .buy ? .buy : (decision.action == .sell ? .sell : .hold))
-                            Text("置信度 \(Int(decision.confidencePercent))%").font(AureonFont.mono(10)).foregroundStyle(AureonPalette.mutedSlate)
-                            if decision.executed { GoldChip(text: "已执行") }
-                            Spacer()
+                switch state {
+                case .idle, .loading:
+                    LoadingStateView(message: "加载决策日志…")
+                case .empty:
+                    EmptyStateView(title: "暂无决策", message: "该会话尚未产生决策记录。")
+                case .failed(let message):
+                    ErrorStateView(message: message)
+                case .loaded(let decisions):
+                    ForEach(decisions) { decision in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                StatusBadge(text: decision.action.labelZh, tint: decision.action == .buy ? .buy : (decision.action == .sell ? .sell : .hold))
+                                Text("置信度 \(Int(decision.confidencePercent))%").font(AureonFont.mono(10)).foregroundStyle(AureonPalette.mutedSlate)
+                                if decision.executed { GoldChip(text: "已执行") }
+                                Spacer()
+                            }
+                            Text(decision.reasoningZh).font(AureonFont.body(12)).foregroundStyle(AureonPalette.warmWhite.opacity(0.9))
                         }
-                        Text(decision.reasoningZh).font(AureonFont.body(12)).foregroundStyle(AureonPalette.warmWhite.opacity(0.9))
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.03)))
                     }
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.03)))
                 }
             }
+            .padding(16)
         }
+        .navigationTitle(sessionName)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

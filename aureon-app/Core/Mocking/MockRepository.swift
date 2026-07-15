@@ -296,6 +296,13 @@ actor MockRepository: DataRepository {
         guard let template = templates.first(where: { $0.id == templateId }) else {
             throw APIErrorEnvelope(code: "not_found", message: "策略模板不存在", details: nil)
         }
+        if runs.contains(where: { $0.templateId == templateId && $0.status.isActive }) {
+            throw APIErrorEnvelope(
+                code: "active_run_exists",
+                message: "该模板已存在运行中或暂停中的实例，请先结束并归档后再启动新实例。",
+                details: nil
+            )
+        }
         let run = TemplateRun(
             id: UUID().uuidString,
             templateId: template.id,
@@ -313,12 +320,29 @@ actor MockRepository: DataRepository {
         return run
     }
 
-    func setRunStatus(runId: String, status: RunStatus) async throws -> TemplateRun {
+    func performRunAction(runId: String, action: RunLifecycleAction) async throws -> TemplateRun {
+        await simulateLatency()
+        try guardScenario()
         guard let index = runs.firstIndex(where: { $0.id == runId }) else {
             throw APIErrorEnvelope(code: "not_found", message: "运行实例不存在", details: nil)
         }
-        runs[index].status = status
-        if status == .stopped || status == .completed { runs[index].nextFireAt = nil }
+        let current = runs[index]
+        guard current.status.availableActions.contains(action) else {
+            throw APIErrorEnvelope(
+                code: "invalid_run_transition",
+                message: "运行当前处于「\(current.status.labelZh)」，不允许执行「\(action.titleZh)」。",
+                details: nil
+            )
+        }
+        runs[index].status = action.resultingStatus
+        switch action {
+        case .pause, .archive:
+            runs[index].nextFireAt = nil
+        case .resume:
+            let template = templates.first { $0.id == current.templateId }
+            let intervalSeconds = template?.frequency.intervalSeconds ?? 300
+            runs[index].nextFireAt = Date().addingTimeInterval(Double(intervalSeconds))
+        }
         return runs[index]
     }
 

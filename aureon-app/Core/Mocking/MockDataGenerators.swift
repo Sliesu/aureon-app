@@ -13,6 +13,10 @@ struct SeededGenerator {
 
     init(seed: UInt64) { self.state = seed &+ 0x9E3779B97F4A7C15 }
 
+    static func seedBits(from hashValue: Int) -> UInt64 {
+        UInt64(bitPattern: Int64(hashValue))
+    }
+
     mutating func nextDouble() -> Double {
         state = state &* 6364136223846793005 &+ 1442695040888963407
         return Double(state >> 11) / Double(1 << 53)
@@ -41,7 +45,9 @@ enum MockMarketFactory {
     }
 
     static func candles(instId: String, bar: CandleInterval, limit: Int) -> [Candle] {
-        var generator = SeededGenerator(seed: UInt64(instId.hashValue) ^ UInt64(bar.rawValue.hashValue))
+        let seed = SeededGenerator.seedBits(from: instId.hashValue)
+            ^ SeededGenerator.seedBits(from: bar.rawValue.hashValue)
+        var generator = SeededGenerator(seed: seed)
         var price = basePrice(for: instId)
         let stepSeconds: TimeInterval = intervalSeconds(bar)
         let now = Date()
@@ -71,7 +77,9 @@ enum MockMarketFactory {
     }
 
     static func ticker(instId: String, referencePrice: Double? = nil) -> TickerSnapshot {
-        var generator = SeededGenerator(seed: UInt64(Date().timeIntervalSince1970 * 10) ^ UInt64(instId.hashValue))
+        let seed = UInt64(Date().timeIntervalSince1970 * 10)
+            ^ SeededGenerator.seedBits(from: instId.hashValue)
+        var generator = SeededGenerator(seed: seed)
         let base = referencePrice ?? basePrice(for: instId)
         let last = base * (1 + generator.nextRange(-0.0015...0.0015))
         let spread = last * 0.0004
@@ -91,7 +99,7 @@ enum MockMarketFactory {
 
     static func volatilityStrip() -> [VolatilityStripItem] {
         supportedInstruments.map { instId in
-            var generator = SeededGenerator(seed: UInt64(instId.hashValue))
+            var generator = SeededGenerator(seed: SeededGenerator.seedBits(from: instId.hashValue))
             return VolatilityStripItem(instId: instId, changePercent24h: generator.nextRange(-6...7))
         }
     }
@@ -134,7 +142,7 @@ enum MockMarketFactory {
     }
 
     static func marketIntel(instId: String) -> MarketIntelSnapshot {
-        var generator = SeededGenerator(seed: UInt64(instId.hashValue) ^ 7)
+        var generator = SeededGenerator(seed: SeededGenerator.seedBits(from: instId.hashValue) ^ 7)
         return MarketIntelSnapshot(
             instId: instId,
             summaryZh: "\(instId) 当前资金费率处于温和正值区间，主流交易所多空比接近均衡，短期清算集中在上方阻力附近。",
@@ -145,7 +153,7 @@ enum MockMarketFactory {
     }
 
     static func orderBook(instId: String) -> OrderBookSnapshot {
-        var generator = SeededGenerator(seed: UInt64(instId.hashValue) ^ 99)
+        var generator = SeededGenerator(seed: SeededGenerator.seedBits(from: instId.hashValue) ^ 99)
         let mid = basePrice(for: instId)
         let bids = (0..<10).map { index -> OrderBookLevel in
             let price = mid * (1 - Double(index + 1) * 0.0006)
@@ -159,7 +167,7 @@ enum MockMarketFactory {
     }
 
     static func fundingRate(instId: String) -> FundingRateInfo {
-        var generator = SeededGenerator(seed: UInt64(instId.hashValue) ^ 11)
+        var generator = SeededGenerator(seed: SeededGenerator.seedBits(from: instId.hashValue) ^ 11)
         return FundingRateInfo(
             instId: instId,
             fundingRatePercent: generator.nextRange(-0.01...0.02),

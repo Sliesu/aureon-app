@@ -13,19 +13,32 @@ struct RootView: View {
     @State private var marketRoute = MarketRoute()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             AureonBackground()
 
-            TabContentSwitcher(selectedTab: selectedTab, marketRoute: $marketRoute)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: AureonDockMetrics.reservedHeight)
+            TabView(selection: $selectedTab) {
+                Tab(AureonTab.market.titleZh, systemImage: AureonTab.market.systemImage, value: AureonTab.market) {
+                    MarketView(route: $marketRoute)
                 }
 
-            AureonLiquidGlassDock(selectedTab: $selectedTab)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 6)
+                Tab(AureonTab.account.titleZh, systemImage: AureonTab.account.systemImage, value: AureonTab.account) {
+                    AccountView()
+                }
+
+                Tab(AureonTab.strategy.titleZh, systemImage: AureonTab.strategy.systemImage, value: AureonTab.strategy) {
+                    StrategyView()
+                }
+
+                Tab(AureonTab.insights.titleZh, systemImage: AureonTab.insights.systemImage, value: AureonTab.insights) {
+                    InsightsView()
+                }
+
+                Tab(AureonTab.profile.titleZh, systemImage: AureonTab.profile.systemImage, value: AureonTab.profile) {
+                    SettingsView()
+                }
+            }
+            .tint(AureonPalette.dockSelected)
         }
-        .ignoresSafeArea(edges: .bottom)
         .environment(\.aureonLocale, env.locale)
     }
 }
@@ -58,29 +71,6 @@ enum AureonTab: String, CaseIterable, Identifiable, Hashable {
         case .insights: return "sparkles"
         case .profile: return "person.crop.circle"
         }
-    }
-}
-
-private struct TabContentSwitcher: View {
-    let selectedTab: AureonTab
-    @Binding var marketRoute: MarketRoute
-
-    var body: some View {
-        ZStack {
-            switch selectedTab {
-            case .market:
-                MarketView(route: $marketRoute)
-            case .account:
-                AccountView()
-            case .strategy:
-                StrategyView()
-            case .insights:
-                InsightsView()
-            case .profile:
-                SettingsView()
-            }
-        }
-        .transition(.opacity)
     }
 }
 

@@ -94,7 +94,9 @@ enum MockStrategyFactory {
 enum MockBacktestFactory {
     static func run(_ request: BacktestRequest) -> BacktestResult {
         let candles = MockMarketFactory.candles(instId: request.instId, bar: request.bar, limit: request.limit)
-        var generator = SeededGenerator(seed: UInt64(request.instId.hashValue) ^ UInt64(request.style.hashValue))
+        let seed = SeededGenerator.seedBits(from: request.instId.hashValue)
+            ^ SeededGenerator.seedBits(from: request.style.hashValue)
+        var generator = SeededGenerator(seed: seed)
         var equity = 10_000.0
         var equityCurve: [EquityPoint] = []
         var trades: [TradeRecord] = []
@@ -140,7 +142,9 @@ enum MockBacktestFactory {
     }
 
     static func walkForward(_ request: BacktestRequest) -> WalkForwardResult {
-        var generator = SeededGenerator(seed: UInt64(request.instId.hashValue) ^ 0xABCD)
+        var generator = SeededGenerator(
+            seed: SeededGenerator.seedBits(from: request.instId.hashValue) ^ 0xABCD
+        )
         let windows = (0..<5).map { index -> WalkForwardWindowResult in
             WalkForwardWindowResult(
                 id: "window-\(index)",
@@ -154,7 +158,9 @@ enum MockBacktestFactory {
     }
 
     static func paramScan(_ request: BacktestRequest) -> ParamScanResult {
-        var generator = SeededGenerator(seed: UInt64(request.instId.hashValue) ^ 0x5151)
+        var generator = SeededGenerator(
+            seed: SeededGenerator.seedBits(from: request.instId.hashValue) ^ 0x5151
+        )
         let points = (0..<9).map { index -> ParamScanPoint in
             ParamScanPoint(
                 id: "scan-\(index)",

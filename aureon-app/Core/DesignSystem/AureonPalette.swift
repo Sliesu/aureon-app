@@ -21,6 +21,8 @@ enum AureonPalette {
     static let gold500 = Color(red: 0xDF / 255, green: 0xC0 / 255, blue: 0x68 / 255)
     static let gold700 = Color(red: 0xB8 / 255, green: 0x89 / 255, blue: 0x2A / 255)
     static let goldRim = Color(red: 212 / 255, green: 175 / 255, blue: 95 / 255)
+    static let dockSelected = Color(red: 0xC0 / 255, green: 0x93 / 255, blue: 0x37 / 255)
+    static let dockSelectionBackground = Color(red: 0x5A / 255, green: 0x5A / 255, blue: 0x5F / 255)
 
     // 语义信号色（对应 tailwind signal.buy / signal.sell / signal.hold）
     static let signalBuy = Color(red: 0x3D / 255, green: 0xFF / 255, blue: 0x9D / 255)
